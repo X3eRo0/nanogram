@@ -1,0 +1,7 @@
+__pycache__/
+build/
+public/
+src/assets/
+src/metadata/
+src/nanogram-data/
+*.zip

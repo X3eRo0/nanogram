@@ -1,0 +1,1700 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>nanogram | profile</title>
+  <link rel="stylesheet" href="themes/default/css/nanogram.css">
+</head>
+<body>
+  <div class="ig-app">
+    <main class="profile-main">
+      <div class="profile-shell">
+        <section class="profile-top">
+          <div class="avatar-wrap">
+            <img id="profileAvatar" class="avatar" src="assets/img/profile.jpg" alt="Profile picture">
+          </div>
+
+          <div class="profile-info">
+            <div class="user-row">
+              <h1 id="profileUsername">profile_user</h1>
+            </div>
+
+            <p id="profileFullName" class="full-name">Profile User</p>
+
+            <ul class="stats">
+              <li><strong id="profilePostsCount">0</strong> posts</li>
+              <li><strong id="profileFollowersCount">0</strong> followers</li>
+              <li><strong id="profileFollowingCount">0</strong> following</li>
+            </ul>
+
+          </div>
+        </section>
+
+        <section class="tabs" aria-label="Feed tabs" data-active-feed="posts">
+          <button class="tab active" type="button" aria-label="Posts" data-feed="posts">
+            <img src="assets/img/grid-3x3-gap-fill.svg" alt="" aria-hidden="true">
+          </button>
+          <button class="tab" type="button" aria-label="Reels" data-feed="reels">
+            <img src="assets/img/play-circle.svg" alt="" aria-hidden="true">
+          </button>
+        </section>
+
+        <section class="posts-grid" aria-label="Posts"></section>
+        <section class="reels-grid" aria-label="Reels" hidden></section>
+      </div>
+    </main>
+  </div>
+
+  <section class="post-modal" id="postModal" aria-hidden="true">
+    <div class="post-modal-backdrop" data-close-modal></div>
+
+    <div class="post-modal-shell">
+      <button type="button" class="modal-close" aria-label="Close post" data-close-modal>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 6l12 12M18 6L6 18"></path>
+        </svg>
+      </button>
+
+      <button type="button" class="modal-nav prev" aria-label="Previous post" data-step="-1">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M14.5 5.5L8 12l6.5 6.5"></path>
+        </svg>
+      </button>
+
+      <button type="button" class="modal-nav next" aria-label="Next post" data-step="1">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M9.5 5.5L16 12l-6.5 6.5"></path>
+        </svg>
+      </button>
+
+      <article class="post-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalUserName">
+        <div class="modal-media" id="modalMedia">
+          <img id="modalPostImage" src="assets/img/post.jpg" alt="Expanded post">
+          <video id="modalPostVideo" preload="metadata" playsinline disablepictureinpicture controlslist="nodownload noplaybackrate nofullscreen noremoteplayback"></video>
+
+          <button type="button" class="video-play-btn" id="videoPlayButton" aria-label="Play video">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 6.3v11.4L18 12z"></path>
+            </svg>
+          </button>
+
+          <button type="button" class="video-mute-btn is-muted" id="videoMuteButton" aria-label="Unmute video">
+            <svg class="icon-unmuted" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 10h4l5-4v12l-5-4H4z"></path>
+              <path d="M16 9c1.3 1.3 1.3 4.7 0 6"></path>
+              <path d="M18.6 6.4c2.7 2.6 2.7 8.6 0 11.2"></path>
+            </svg>
+            <svg class="icon-muted" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 10h4l5-4v12l-5-4H4z"></path>
+              <path d="M16 9l4 6M20 9l-4 6"></path>
+            </svg>
+          </button>
+
+          <button type="button" class="thread-nav-btn prev" id="threadPrevButton" aria-label="Previous media">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M14.5 5.5L8 12l6.5 6.5"></path>
+            </svg>
+          </button>
+
+          <button type="button" class="thread-nav-btn next" id="threadNextButton" aria-label="Next media">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M9.5 5.5L16 12l-6.5 6.5"></path>
+            </svg>
+          </button>
+
+          <div class="thread-dots" id="threadDots" aria-label="Media items"></div>
+        </div>
+
+        <aside class="modal-comments-panel" aria-label="Comments">
+          <header class="modal-header">
+            <div class="modal-user">
+              <img id="modalUserAvatar" src="assets/img/profile.jpg" alt="profile_user profile">
+              <div class="modal-user-meta">
+                <strong id="modalUserName">profile_user</strong>
+                <p id="modalAudioBadge" class="modal-audio" hidden>Original audio</p>
+              </div>
+            </div>
+            <button type="button" class="modal-icon-btn" aria-label="More options">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="6.5" cy="12" r="1.4"></circle>
+                <circle cx="12" cy="12" r="1.4"></circle>
+                <circle cx="17.5" cy="12" r="1.4"></circle>
+              </svg>
+            </button>
+          </header>
+
+          <div class="modal-thread" id="modalThread"></div>
+
+          <div class="modal-actions">
+            <div class="action-left">
+              <button type="button" class="modal-icon-btn" aria-label="Like">
+                <img src="assets/img/heart.svg" alt="" aria-hidden="true">
+              </button>
+              <button type="button" class="modal-icon-btn" aria-label="Share">
+                <img src="assets/img/send.svg" alt="" aria-hidden="true">
+              </button>
+            </div>
+
+            <button type="button" class="modal-icon-btn" aria-label="Save">
+              <img src="assets/img/bookmark.svg" alt="" aria-hidden="true">
+            </button>
+          </div>
+
+          <div class="modal-likes">
+            <strong id="modalLikeLine">Liked by others</strong>
+            <p id="modalPostDate">February 1</p>
+          </div>
+
+          <form id="modalCommentForm" class="modal-comment-form" action="#" method="post">
+            <label id="modalCommentLabel" class="sr-only" for="modalCommentInput">Add a comment</label>
+            <input id="modalCommentPostId" type="hidden" name="" value="">
+            <input id="modalCommentAlias" type="hidden" name="" value="">
+            <input id="modalCommentAvatar" type="hidden" name="" value="">
+            <input id="modalCommentInput" name="" type="text" placeholder="Add a comment...">
+            <button type="submit">Post</button>
+          </form>
+        </aside>
+      </article>
+    </div>
+  </section>
+
+  <div id="commentNoticeOverlay" class="comment-notice-overlay" aria-hidden="true" hidden>
+    <div class="comment-notice-dialog" role="dialog" aria-modal="true" aria-labelledby="commentNoticeText">
+      <p id="commentNoticeText" class="comment-notice-text"></p>
+      <div id="commentIdentityPrompt" class="comment-identity-prompt" hidden>
+        <p class="comment-identity-hint">
+          Choose an avatar and name (optional). If left empty, a random alias and avatar are used.
+        </p>
+        <label class="comment-identity-label" for="commentAliasInput">Name (optional)</label>
+        <input id="commentAliasInput" class="comment-identity-input" type="text" maxlength="32" autocomplete="nickname" placeholder="e.g. Desert Coyote">
+        <p class="comment-identity-label">Avatar (optional)</p>
+        <div id="commentAvatarPicker" class="comment-avatar-picker" role="listbox" aria-label="Choose avatar emoji"></div>
+        <div class="comment-identity-actions">
+          <button id="commentIdentityCancel" class="comment-identity-btn comment-identity-cancel" type="button">Cancel</button>
+          <button id="commentIdentityContinue" class="comment-identity-btn comment-identity-continue" type="button">Continue</button>
+        </div>
+      </div>
+      <button id="commentNoticeOk" class="comment-notice-ok" type="button">OK</button>
+    </div>
+  </div>
+
+  <!-- MANAGED:POSTS_DATA:START -->
+  <script id="sitePostsData" type="application/json">
+{
+  "profile": {
+    "username": "profile_user",
+    "full_name": "Profile User",
+    "posts_count": 0,
+    "followers_count": 0,
+    "following_count": 0,
+    "profile_image": "assets/img/profile.jpg"
+  },
+  "comment_avatar_emojis": [],
+  "posts": [],
+  "reels": []
+}
+  </script>
+  <!-- MANAGED:POSTS_DATA:END -->
+
+  <script>
+    (() => {
+      const modal = document.getElementById("postModal");
+      const modalShell = modal ? modal.querySelector(".post-modal-shell") : null;
+      const modalDialog = modal ? modal.querySelector(".post-modal-dialog") : null;
+      const modalMedia = document.getElementById("modalMedia");
+      const modalImage = document.getElementById("modalPostImage");
+      const modalVideo = document.getElementById("modalPostVideo");
+      const playButton = document.getElementById("videoPlayButton");
+      const muteButton = document.getElementById("videoMuteButton");
+      const threadPrevButton = document.getElementById("threadPrevButton");
+      const threadNextButton = document.getElementById("threadNextButton");
+      const threadDots = document.getElementById("threadDots");
+      const postsGrid = document.querySelector(".posts-grid");
+      const reelsGrid = document.querySelector(".reels-grid");
+      const tabsContainer = document.querySelector(".tabs");
+      const feedTabs = Array.from(document.querySelectorAll(".tabs .tab[data-feed]"));
+      const modalNavButtons = Array.from(modal ? modal.querySelectorAll(".modal-nav[data-step]") : []);
+      const dataScript = document.getElementById("sitePostsData");
+      const modalThread = document.getElementById("modalThread");
+      const modalUserName = document.getElementById("modalUserName");
+      const modalUserAvatar = document.getElementById("modalUserAvatar");
+      const audioBadge = document.getElementById("modalAudioBadge");
+      const likeLine = document.getElementById("modalLikeLine");
+      const postDate = document.getElementById("modalPostDate");
+      const modalCommentsPanel = modal ? modal.querySelector(".modal-comments-panel") : null;
+      const commentForm = document.getElementById("modalCommentForm");
+      const commentPostIdInput = document.getElementById("modalCommentPostId");
+      const commentAliasHiddenInput = document.getElementById("modalCommentAlias");
+      const commentAvatarHiddenInput = document.getElementById("modalCommentAvatar");
+      const commentInput = document.getElementById("modalCommentInput");
+      const commentLabel = document.getElementById("modalCommentLabel");
+      const commentSubmitButton = commentForm ? commentForm.querySelector('button[type="submit"]') : null;
+      const COMMENT_FORM_TARGET_NAME = "comment_submit_iframe";
+      const COMMENT_REVIEW_MESSAGE =
+        "Your comment is under review, and it may or may not appear on the post depending on the mood of the reviewer (me).";
+      const commentNoticeOverlayEl = document.getElementById("commentNoticeOverlay");
+      const commentNoticeTextEl = document.getElementById("commentNoticeText");
+      const commentNoticeOkBtn = document.getElementById("commentNoticeOk");
+      const commentIdentityPromptEl = document.getElementById("commentIdentityPrompt");
+      const commentAliasInputEl = document.getElementById("commentAliasInput");
+      const commentAvatarPickerEl = document.getElementById("commentAvatarPicker");
+      const commentIdentityCancelBtn = document.getElementById("commentIdentityCancel");
+      const commentIdentityContinueBtn = document.getElementById("commentIdentityContinue");
+      let commentNoticeHideTimer = 0;
+      let commentNoticeLastFocused = null;
+      let selectedIdentityAvatar = "";
+
+      const DEFAULT_COMMENT_AVATAR_EMOJIS = [
+        "👶", "🧒", "👦", "👧", "🧑", "👱", "👨", "🧔", "🧔‍♂️", "🧔‍♀️",
+        "👨‍🦰", "👨‍🦱", "👨‍🦳", "👨‍🦲", "👩", "👩‍🦰", "🧑‍🦰", "👩‍🦱", "🧑‍🦱",
+        "👩‍🦳", "🧑‍🦳", "👩‍🦲", "🧑‍🦲", "👱‍♀️", "👱‍♂️", "🧓", "👴", "👵", "🧏",
+        "🧏‍♂️", "🧏‍♀️", "👳", "👳‍♂️", "👳‍♀️", "👲", "🧕", "👼", "🗣️", "👤", "👥", "🫂"
+      ];
+      const DEFAULT_RANDOM_ALIASES = [
+        "Desert Fox", "Night Cactus", "Quiet Orbit", "Copper Trail", "Moon Saguaro",
+        "Echo Nomad", "Pixel Hiker", "Dusty Byte", "Canyon Drift", "Sunset Static",
+        "North Lantern", "Silver Sparrow", "Juniper Loop", "Mesa Voyager", "Hidden Dune"
+      ];
+
+      if (!modal || !modalShell || !modalDialog || !modalMedia || !modalImage || !modalVideo || !postsGrid || !reelsGrid || !dataScript || !modalThread) {
+        return;
+      }
+
+      const normalizeAvatarEmojiList = (value) => {
+        const out = [];
+        const seen = new Set();
+        const addToken = (raw) => {
+          const token = String(raw || "").trim();
+          if (!token || seen.has(token)) {
+            return;
+          }
+          seen.add(token);
+          out.push(token);
+        };
+
+        if (Array.isArray(value)) {
+          value.forEach(addToken);
+        } else if (typeof value === "string") {
+          const text = value.trim();
+          if (text) {
+            if (text.startsWith("[")) {
+              try {
+                const parsed = JSON.parse(text);
+                if (Array.isArray(parsed)) {
+                  parsed.forEach(addToken);
+                }
+              } catch (_error) {
+                text.split(/[\n,|]+/).forEach(addToken);
+              }
+            } else {
+              text.split(/[\n,|]+/).forEach(addToken);
+            }
+          }
+        }
+
+        return out;
+      };
+
+      const parseData = () => {
+        try {
+          const parsed = JSON.parse(dataScript.textContent || "{}");
+          if (!parsed || typeof parsed !== "object") {
+            return { profile: {}, comment_avatar_emojis: [], posts: [], reels: [] };
+          }
+          return parsed;
+        } catch (error) {
+          console.error("Invalid sitePostsData JSON", error);
+          return { profile: {}, comment_avatar_emojis: [], posts: [], reels: [] };
+        }
+      };
+
+      const siteData = parseData();
+      const configuredAvatarEmojiChoices = normalizeAvatarEmojiList(siteData.comment_avatar_emojis);
+      const avatarEmojiChoices = configuredAvatarEmojiChoices.length
+        ? configuredAvatarEmojiChoices
+        : DEFAULT_COMMENT_AVATAR_EMOJIS.slice();
+      const profile = {
+        username: typeof siteData.profile?.username === "string" && siteData.profile.username.trim()
+          ? siteData.profile.username.trim()
+          : "profile_user",
+        fullName: typeof siteData.profile?.full_name === "string" && siteData.profile.full_name.trim()
+          ? siteData.profile.full_name.trim()
+          : "Profile User",
+        postsRaw: siteData.profile?.posts_count ?? siteData.profile?.posts ?? siteData.profile?.post_count,
+        followersRaw: siteData.profile?.followers_count ?? siteData.profile?.followers,
+        followingRaw: siteData.profile?.following_count ?? siteData.profile?.following,
+        profileImage: typeof siteData.profile?.profile_image === "string" && siteData.profile.profile_image.trim()
+          ? siteData.profile.profile_image.trim()
+          : "assets/img/profile.jpg"
+      };
+
+      const normalizeComment = (rawComment) => {
+        const comment = rawComment && typeof rawComment === "object" ? rawComment : {};
+        return {
+          user: typeof comment.user === "string" && comment.user.trim() ? comment.user.trim() : "user",
+          text: typeof comment.text === "string" ? comment.text : "",
+          time: typeof comment.time === "string" ? comment.time : "",
+          likes: typeof comment.likes === "string" ? comment.likes : "",
+          avatar: typeof comment.avatar === "string" && comment.avatar.trim() ? comment.avatar.trim() : profile.profileImage,
+          showReply: comment.show_reply !== false,
+          showHeart: comment.show_heart !== false
+        };
+      };
+
+      const normalizeMediaItem = (rawItem, fallback) => {
+        const item = rawItem && typeof rawItem === "object" ? rawItem : {};
+        const fallbackType = fallback.type === "video" ? "video" : "image";
+        const mediaType = item.type === "video" ? "video" : item.type === "image" ? "image" : fallbackType;
+        const src = typeof item.src === "string" && item.src.trim() ? item.src.trim() : fallback.src;
+        const thumbnail = typeof item.thumbnail === "string" && item.thumbnail.trim()
+          ? item.thumbnail.trim()
+          : (mediaType === "video" ? src : src);
+        const poster = typeof item.poster === "string" && item.poster.trim()
+          ? item.poster.trim()
+          : (mediaType === "video" ? "" : src);
+        const ratioRaw = Number(item.ratio);
+        const ratio = Number.isFinite(ratioRaw) && ratioRaw > 0 ? ratioRaw : (mediaType === "video" ? 9 / 16 : 1);
+        return {
+          type: mediaType,
+          src,
+          thumbnail,
+          poster,
+          alt: typeof item.alt === "string" && item.alt.trim() ? item.alt.trim() : fallback.alt,
+          ratio
+        };
+      };
+
+      const extractTimestampFromMediaPath = (mediaPath) => {
+        if (typeof mediaPath !== "string" || !mediaPath) {
+          return null;
+        }
+        const match = mediaPath.match(/_(\d{4}-\d{2}-\d{2})_(\d{4})(?:\/|$)/);
+        if (!match) {
+          return null;
+        }
+        const datePart = match[1];
+        const timePart = match[2];
+        const isoGuess = `${datePart}T${timePart.slice(0, 2)}:${timePart.slice(2, 4)}:00`;
+        const parsed = Date.parse(isoGuess);
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+
+      const extractTimestampFromPostData = (post) => {
+        const candidates = [
+          post.posted_at_iso,
+          post.postedAtIso,
+          post.timestamp_iso,
+          post.timestampIso,
+          post.posted_at,
+          post.postedAt
+        ];
+        for (const candidate of candidates) {
+          if (typeof candidate !== "string") {
+            continue;
+          }
+          const value = candidate.trim();
+          if (!value) {
+            continue;
+          }
+          const parsed = Date.parse(value);
+          if (Number.isFinite(parsed)) {
+            return parsed;
+          }
+        }
+        return null;
+      };
+
+      const extractMetricCount = (value) => {
+        if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
+          return new Intl.NumberFormat("en-US").format(Math.round(value));
+        }
+        if (typeof value !== "string") {
+          return null;
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+          return null;
+        }
+        const direct = trimmed.match(/^\d[\d,]*(?:\.\d+)?[kKmMbB]?$/);
+        if (direct) {
+          return direct[0];
+        }
+        const embedded = trimmed.match(/(\d[\d,]*(?:\.\d+)?[kKmMbB]?)/);
+        return embedded ? embedded[1] : null;
+      };
+
+      const formIdFromPostId = (value, isReel = false) => {
+        const raw = typeof value === "string" ? value.trim() : "";
+        if (raw.startsWith("post_")) {
+          const suffix = raw.slice(5).trim();
+          return suffix ? "post-" + suffix : "post";
+        }
+        if (raw.startsWith("reel_")) {
+          const suffix = raw.slice(5).trim();
+          return suffix ? "reel-" + suffix : "reel";
+        }
+        const cleaned = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+        if (cleaned) {
+          return (isReel ? "reel-" : "post-") + cleaned;
+        }
+        return isReel ? "reel" : "post";
+      };
+
+      const normalizeGoogleFormAction = (value) => {
+        const text = typeof value === "string" ? value.trim() : "";
+        if (!text) {
+          return "";
+        }
+        try {
+          const url = new URL(text, window.location.href);
+          if (url.hostname.toLowerCase() === "docs.google.com" && /\/forms\/d\/e\//i.test(url.pathname)) {
+            url.pathname = url.pathname.replace(/\/viewform\/?$/i, "/formResponse");
+            url.search = "";
+            url.hash = "";
+            return url.toString();
+          }
+        } catch (_error) {
+          return text;
+        }
+        return text;
+      };
+
+      const normalizePost = (rawPost, index, sourceFeed, sourceOrder) => {
+        const post = rawPost && typeof rawPost === "object" ? rawPost : {};
+        const fallbackThumb = "assets/img/post.jpg";
+        const fallbackAlt = typeof post.alt === "string" && post.alt.trim() ? post.alt.trim() : "Post " + (index + 1);
+
+        const baseType = post.type === "video" ? "video" : "image";
+        const baseSrc = typeof post.src === "string" && post.src.trim() ? post.src.trim() : fallbackThumb;
+        const baseThumb = typeof post.thumbnail === "string" && post.thumbnail.trim()
+          ? post.thumbnail.trim()
+          : (typeof post.poster === "string" && post.poster.trim() ? post.poster.trim() : baseSrc);
+        const basePoster = typeof post.poster === "string" && post.poster.trim()
+          ? post.poster.trim()
+          : baseThumb;
+        const baseRatioRaw = Number(post.ratio);
+        const baseRatio = Number.isFinite(baseRatioRaw) && baseRatioRaw > 0
+          ? baseRatioRaw
+          : (baseType === "video" ? 9 / 16 : 1);
+
+        const rawMediaItems = Array.isArray(post.media_items) && post.media_items.length
+          ? post.media_items
+          : [
+            {
+              type: baseType,
+              src: baseSrc,
+              thumbnail: baseThumb,
+              poster: basePoster,
+              alt: fallbackAlt,
+              ratio: baseRatio
+            }
+          ];
+
+        const mediaItems = rawMediaItems.map((rawItem, mediaIndex) => {
+          const itemFallbackAlt = rawMediaItems.length > 1 ? `${fallbackAlt} (${mediaIndex + 1})` : fallbackAlt;
+          return normalizeMediaItem(rawItem, {
+            type: baseType,
+            src: baseSrc,
+            thumbnail: baseThumb,
+            poster: basePoster,
+            alt: itemFallbackAlt
+          });
+        });
+
+        const primary = mediaItems[0];
+        const hasVideo = mediaItems.some((item) => item.type === "video");
+        const explicitSortTs = extractTimestampFromPostData(post);
+        const mediaSortTs = extractTimestampFromMediaPath(primary.src) || extractTimestampFromMediaPath(baseSrc);
+        const comments = Array.isArray(post.comments) ? post.comments.map(normalizeComment) : [];
+        const rawLikeCount =
+          post.like_count ?? post.likeCount ?? post.likes_count ?? post.likesCount;
+        const hasLikeCount = rawLikeCount !== undefined && rawLikeCount !== null && String(rawLikeCount).trim() !== "";
+        const likesCount = extractMetricCount(
+          hasLikeCount ? rawLikeCount : post.likes
+        ) || "0";
+
+        const rawCommentCount =
+          post.comment_count ?? post.commentCount ?? post.comments_count ?? post.commentsCount;
+        const commentsCount = extractMetricCount(rawCommentCount) || String(comments.length);
+
+        const rawLikesLine = typeof post.likes === "string" ? post.likes.trim() : "";
+        const likesLine = hasLikeCount && (!rawLikesLine || /^liked by\b/i.test(rawLikesLine))
+          ? `${likesCount} likes`
+          : (rawLikesLine || "Liked by others");
+        const sourcePostId = typeof post.post_id === "string" && post.post_id.trim()
+          ? post.post_id.trim()
+          : (typeof post.id === "string" && post.id.trim() ? post.id.trim() : "post_" + (index + 1));
+        const rawFormId = typeof post.form_id === "string" ? post.form_id.trim() : "";
+        const formId = rawFormId || formIdFromPostId(sourcePostId, sourceFeed === "reels");
+        const formLink = normalizeGoogleFormAction(
+          typeof post.form_link === "string" ? post.form_link.trim() : ""
+        );
+        const postIdVar = typeof post.post_id_var === "string"
+          ? post.post_id_var.trim()
+          : (typeof post["post-id-var"] === "string" ? post["post-id-var"].trim() : "");
+        const commentVar = typeof post.comment_var === "string"
+          ? post.comment_var.trim()
+          : (typeof post["comment-var"] === "string"
+              ? post["comment-var"].trim()
+              : (typeof post.form_variable === "string" ? post.form_variable.trim() : ""));
+        const aliasVar = typeof post.alias_var === "string"
+          ? post.alias_var.trim()
+          : (typeof post["alias-var"] === "string" ? post["alias-var"].trim() : "");
+        const avatarVar = typeof post.avatar_var === "string"
+          ? post.avatar_var.trim()
+          : (typeof post.emoji_var === "string"
+              ? post.emoji_var.trim()
+              : (typeof post["avatar-var"] === "string"
+                  ? post["avatar-var"].trim()
+                  : (typeof post["emoji-var"] === "string" ? post["emoji-var"].trim() : "")));
+
+        return {
+          id: typeof post.id === "string" && post.id.trim() ? post.id.trim() : "post_" + (index + 1),
+          postId: sourcePostId,
+          formId,
+          formLink,
+          postIdVar,
+          commentVar,
+          aliasVar,
+          avatarVar,
+          type: primary.type,
+          src: primary.src,
+          thumbnail: primary.thumbnail,
+          poster: primary.poster,
+          alt: primary.alt,
+          caption: typeof post.caption === "string" ? post.caption : "",
+          likes: likesLine,
+          date: typeof post.date === "string" && post.date.trim() ? post.date.trim() : "January 1",
+          audio: hasVideo && typeof post.audio === "string" && post.audio.trim() ? post.audio.trim() : "Original audio",
+          ratio: primary.ratio,
+          views: typeof post.views === "string" ? post.views.trim() : "",
+          likesCount,
+          commentsCount,
+          isReel: sourceFeed === "reels",
+          isThread: mediaItems.length > 1,
+          sourceOrder,
+          sortTs: Number.isFinite(explicitSortTs) ? explicitSortTs : mediaSortTs,
+          mediaItems,
+          comments
+        };
+      };
+
+      const posts = Array.isArray(siteData.posts)
+        ? siteData.posts.map((post, index) => normalizePost(post, index, "posts", index))
+        : [];
+      const reels = Array.isArray(siteData.reels)
+        ? siteData.reels.map((reel, index) => normalizePost(reel, index, "reels", posts.length + index))
+        : [];
+      const reelsOnly = reels.filter((item) => item.isReel === true);
+      const homePosts = [...posts, ...reelsOnly].sort((a, b) => {
+        const aTs = Number.isFinite(a.sortTs) ? a.sortTs : -Infinity;
+        const bTs = Number.isFinite(b.sortTs) ? b.sortTs : -Infinity;
+        if (aTs !== bTs) {
+          return bTs - aTs;
+        }
+        return a.sourceOrder - b.sourceOrder;
+      });
+
+      const applyProfile = () => {
+        const postsCount = extractMetricCount(profile.postsRaw) || String(homePosts.length);
+        const followersCount = extractMetricCount(profile.followersRaw) || "0";
+        const followingCount = extractMetricCount(profile.followingRaw) || "0";
+        const profileNodes = document.querySelectorAll(".avatar, .profile-thumb img");
+        profileNodes.forEach((node) => {
+          node.src = profile.profileImage;
+          if (node instanceof HTMLImageElement) {
+            node.alt = profile.username + " profile picture";
+          }
+        });
+        const profileUsernameEl = document.getElementById("profileUsername");
+        if (profileUsernameEl) {
+          profileUsernameEl.textContent = profile.username;
+        }
+        const profileFullNameEl = document.getElementById("profileFullName");
+        if (profileFullNameEl) {
+          profileFullNameEl.textContent = profile.fullName;
+        }
+        const profilePostsCountEl = document.getElementById("profilePostsCount");
+        if (profilePostsCountEl) {
+          profilePostsCountEl.textContent = postsCount;
+        }
+        const profileFollowersCountEl = document.getElementById("profileFollowersCount");
+        if (profileFollowersCountEl) {
+          profileFollowersCountEl.textContent = followersCount;
+        }
+        const profileFollowingCountEl = document.getElementById("profileFollowingCount");
+        if (profileFollowingCountEl) {
+          profileFollowingCountEl.textContent = followingCount;
+        }
+        document.title = profile.username + " | nanogram";
+        if (modalUserAvatar) {
+          modalUserAvatar.src = profile.profileImage;
+          modalUserAvatar.alt = profile.username + " profile";
+        }
+        if (modalUserName) {
+          modalUserName.textContent = profile.username;
+        }
+      };
+
+      const makeMetaNode = (text, tagName = "span") => {
+        const value = String(text || "").trim();
+        if (!value) {
+          return null;
+        }
+        const node = document.createElement(tagName);
+        node.textContent = value;
+        if (tagName === "button") {
+          node.type = "button";
+        }
+        return node;
+      };
+
+      const instagramProfileUrl = (user) => {
+        const handle = String(user || "").trim().replace(/^@+/, "");
+        if (!handle) {
+          return "";
+        }
+        return "https://www.instagram.com/" + encodeURIComponent(handle) + "/";
+      };
+
+      const looksLikeImageSource = (value) => {
+        const text = String(value || "").trim();
+        if (!text) {
+          return false;
+        }
+        if (/^(?:data:image\/|blob:)/i.test(text)) {
+          return true;
+        }
+        if (/^[a-z][a-z0-9+.-]*:\/\//i.test(text)) {
+          return true;
+        }
+        if (text.startsWith("/") || text.startsWith("./") || text.startsWith("../")) {
+          return true;
+        }
+        if (text.includes("/")) {
+          return true;
+        }
+        return /\.(?:png|jpe?g|webp|gif|svg|avif|heic)(?:[?#].*)?$/i.test(text);
+      };
+
+      const createCommentAvatarNode = (avatarValue, user) => {
+        const raw = String(avatarValue || "").trim();
+        const fallback = profile.profileImage;
+        const text = raw || fallback;
+
+        if (looksLikeImageSource(text)) {
+          const image = document.createElement("img");
+          image.className = "comment-avatar comment-avatar-image";
+          image.src = text;
+          image.alt = user + " avatar";
+          return image;
+        }
+
+        const emoji = document.createElement("span");
+        emoji.className = "comment-avatar comment-avatar-emoji";
+        emoji.setAttribute("role", "img");
+        emoji.setAttribute("aria-label", user + " avatar");
+        const glyph = document.createElement("span");
+        glyph.className = "comment-avatar-emoji-glyph";
+        glyph.textContent = text;
+        glyph.setAttribute("aria-hidden", "true");
+        emoji.appendChild(glyph);
+        return emoji;
+      };
+
+      const createCommentNode = (comment, isCaption) => {
+        const item = document.createElement("article");
+        item.className = "comment-item";
+        const avatar = createCommentAvatarNode(comment.avatar, comment.user);
+
+        const copy = document.createElement("div");
+        copy.className = "comment-copy";
+
+        const textLine = document.createElement("p");
+        const userName = document.createElement("a");
+        userName.className = "comment-user";
+        userName.textContent = comment.user;
+        const userProfileUrl = instagramProfileUrl(comment.user);
+        if (userProfileUrl) {
+          userName.href = userProfileUrl;
+          userName.target = "_blank";
+          userName.rel = "noopener noreferrer";
+        }
+        textLine.appendChild(userName);
+        textLine.append(" " + (comment.text || ""));
+
+        const meta = document.createElement("div");
+        meta.className = "comment-meta";
+        const timeNode = makeMetaNode(comment.time, "span");
+        const likesNode = makeMetaNode(comment.likes, "span");
+        const replyNode = !isCaption && comment.showReply ? makeMetaNode("Reply", "button") : null;
+        if (timeNode) {
+          meta.appendChild(timeNode);
+        }
+        if (likesNode) {
+          meta.appendChild(likesNode);
+        }
+        if (replyNode) {
+          meta.appendChild(replyNode);
+        }
+
+        copy.appendChild(textLine);
+        if (meta.childElementCount > 0) {
+          copy.appendChild(meta);
+        }
+
+        item.appendChild(avatar);
+        item.appendChild(copy);
+
+        if (!isCaption && comment.showHeart) {
+          const heart = document.createElement("button");
+          heart.type = "button";
+          heart.className = "comment-like";
+          heart.setAttribute("aria-label", "Like comment");
+          heart.textContent = "❤";
+          item.appendChild(heart);
+        }
+
+        return item;
+      };
+
+      const renderThread = (post) => {
+        modalThread.innerHTML = "";
+        const captionComment = createCommentNode(
+          {
+            user: profile.username,
+            text: post.caption,
+            time: "3w",
+            likes: "",
+            avatar: profile.profileImage,
+            showReply: false,
+            showHeart: false
+          },
+          true
+        );
+        modalThread.appendChild(captionComment);
+
+        post.comments.forEach((comment) => {
+          modalThread.appendChild(createCommentNode(comment, false));
+        });
+      };
+
+      const renderFeedGrid = (gridElement, items, feedName) => {
+        gridElement.innerHTML = "";
+        items.forEach((post, index) => {
+          const card = document.createElement("article");
+          const isReelFeed = feedName === "reels";
+          const isThread = post.isThread === true;
+          const isReelPost = post.isReel === true;
+          card.className =
+            "post-card" +
+            (post.type === "video" ? " is-video" : "") +
+            (isThread ? " is-thread" : "") +
+            (isReelPost ? " is-reel" : "") +
+            (isReelFeed ? " reel-card" : "");
+          card.dataset.postIndex = String(index);
+          card.dataset.feed = feedName;
+          card.role = "button";
+          card.tabIndex = 0;
+          card.setAttribute("aria-label", isReelPost ? "Open reel" : post.type === "video" ? "Open video post" : "Open post");
+
+          if (post.type === "video" && !isReelPost) {
+            const previewVideo = document.createElement("video");
+            previewVideo.className = "post-card-video";
+            previewVideo.src = post.src;
+            previewVideo.muted = true;
+            previewVideo.loop = true;
+            previewVideo.autoplay = true;
+            previewVideo.playsInline = true;
+            previewVideo.preload = "metadata";
+            previewVideo.setAttribute("aria-hidden", "true");
+            previewVideo.setAttribute("disablepictureinpicture", "");
+            previewVideo.setAttribute(
+              "controlslist",
+              "nodownload noplaybackrate nofullscreen noremoteplayback"
+            );
+            previewVideo.setAttribute("tabindex", "-1");
+            card.appendChild(previewVideo);
+          } else {
+            const thumbnailSrc = post.thumbnail || post.poster || post.src;
+            const isVideoPath = /\.(mp4|mov|m4v|webm)(?:[?#].*)?$/i.test(String(thumbnailSrc || ""));
+            if (isReelPost && post.type === "video" && isVideoPath) {
+              const stillVideo = document.createElement("video");
+              stillVideo.className = "post-card-video";
+              stillVideo.src = post.src;
+              stillVideo.muted = true;
+              stillVideo.playsInline = true;
+              stillVideo.preload = "metadata";
+              stillVideo.setAttribute("aria-hidden", "true");
+              stillVideo.setAttribute("disablepictureinpicture", "");
+              stillVideo.setAttribute(
+                "controlslist",
+                "nodownload noplaybackrate nofullscreen noremoteplayback"
+              );
+              stillVideo.setAttribute("tabindex", "-1");
+              card.appendChild(stillVideo);
+            } else {
+            const image = document.createElement("img");
+            image.src = thumbnailSrc;
+            image.alt = post.alt;
+            card.appendChild(image);
+            }
+          }
+
+          if (isThread) {
+            const threadIcon = document.createElement("img");
+            threadIcon.className = "thread-icon";
+            threadIcon.src = "assets/img/thread-copy.svg";
+            threadIcon.alt = "";
+            threadIcon.setAttribute("aria-hidden", "true");
+            card.appendChild(threadIcon);
+          }
+
+          if (isReelPost) {
+            const reelIcon = document.createElement("img");
+            reelIcon.className = "reel-icon";
+            reelIcon.src = "assets/img/reel-play-fill.svg";
+            reelIcon.alt = "";
+            reelIcon.setAttribute("aria-hidden", "true");
+            card.appendChild(reelIcon);
+          }
+
+          if (isReelFeed && post.views) {
+            const views = document.createElement("div");
+            views.className = "reel-views";
+            views.innerHTML =
+              '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>' +
+              "<span>" +
+              post.views +
+              "</span>";
+            card.appendChild(views);
+          }
+
+          const hoverMeta = document.createElement("div");
+          hoverMeta.className = "post-hover-meta";
+
+          const likesMeta = document.createElement("div");
+          likesMeta.className = "post-hover-stat";
+          const likesIcon = document.createElement("img");
+          likesIcon.src = "assets/img/heart-fill.svg";
+          likesIcon.alt = "";
+          likesIcon.setAttribute("aria-hidden", "true");
+          const likesCount = document.createElement("span");
+          likesCount.textContent = post.likesCount || "0";
+          likesMeta.appendChild(likesIcon);
+          likesMeta.appendChild(likesCount);
+
+          const commentsMeta = document.createElement("div");
+          commentsMeta.className = "post-hover-stat";
+          const commentsIcon = document.createElement("img");
+          commentsIcon.src = "assets/img/chat-fill.svg";
+          commentsIcon.alt = "";
+          commentsIcon.setAttribute("aria-hidden", "true");
+          const commentsCount = document.createElement("span");
+          commentsCount.textContent = post.commentsCount || "0";
+          commentsMeta.appendChild(commentsIcon);
+          commentsMeta.appendChild(commentsCount);
+
+          hoverMeta.appendChild(likesMeta);
+          hoverMeta.appendChild(commentsMeta);
+          card.appendChild(hoverMeta);
+
+          gridElement.appendChild(card);
+        });
+      };
+
+      const pickRandom = (items, fallback) => {
+        if (!Array.isArray(items) || !items.length) {
+          return fallback;
+        }
+        const index = Math.floor(Math.random() * items.length);
+        const selected = items[index];
+        if (typeof selected === "string" && selected.trim()) {
+          return selected.trim();
+        }
+        return fallback;
+      };
+
+      const pickRandomAlias = () => pickRandom(DEFAULT_RANDOM_ALIASES, "Wandering Guest");
+      const pickRandomAvatar = () => pickRandom(avatarEmojiChoices, "🧑");
+
+      const sanitizeAlias = (value) => (
+        String(value || "")
+          .trim()
+          .replace(/\s+/g, " ")
+          .slice(0, 32)
+      );
+
+      const openCommentOverlay = (focusTarget) => {
+        if (!commentNoticeOverlayEl) {
+          return;
+        }
+        commentNoticeLastFocused = document.activeElement instanceof HTMLElement
+          ? document.activeElement
+          : null;
+        if (commentNoticeHideTimer) {
+          window.clearTimeout(commentNoticeHideTimer);
+          commentNoticeHideTimer = 0;
+        }
+        commentNoticeOverlayEl.hidden = false;
+        commentNoticeOverlayEl.setAttribute("aria-hidden", "false");
+        commentNoticeOverlayEl.classList.remove("is-visible");
+        window.requestAnimationFrame(() => {
+          commentNoticeOverlayEl.classList.add("is-visible");
+          if (focusTarget && typeof focusTarget.focus === "function") {
+            focusTarget.focus();
+          }
+        });
+      };
+
+      const hideCommentNotice = () => {
+        if (!commentNoticeOverlayEl) {
+          return;
+        }
+        commentNoticeOverlayEl.classList.remove("is-visible");
+        commentNoticeOverlayEl.setAttribute("aria-hidden", "true");
+        if (commentNoticeHideTimer) {
+          window.clearTimeout(commentNoticeHideTimer);
+        }
+        commentNoticeHideTimer = window.setTimeout(() => {
+          commentNoticeOverlayEl.hidden = true;
+          commentNoticeHideTimer = 0;
+          if (commentNoticeLastFocused instanceof HTMLElement) {
+            commentNoticeLastFocused.focus();
+          }
+        }, 220);
+      };
+
+      const renderAvatarPicker = () => {
+        if (!commentAvatarPickerEl) {
+          return;
+        }
+        commentAvatarPickerEl.innerHTML = "";
+        avatarEmojiChoices.forEach((emoji) => {
+          const option = document.createElement("button");
+          option.type = "button";
+          option.className = "comment-avatar-option";
+          option.textContent = emoji;
+          option.setAttribute("aria-label", "Select avatar " + emoji);
+          option.dataset.emoji = emoji;
+          option.setAttribute("role", "option");
+          option.setAttribute("aria-selected", selectedIdentityAvatar === emoji ? "true" : "false");
+          if (selectedIdentityAvatar === emoji) {
+            option.classList.add("is-selected");
+          }
+          option.addEventListener("click", () => {
+            selectedIdentityAvatar = emoji;
+            renderAvatarPicker();
+          });
+          commentAvatarPickerEl.appendChild(option);
+        });
+      };
+
+      const showCommentNotice = (message) => {
+        if (!commentNoticeOverlayEl || !commentNoticeTextEl || !commentNoticeOkBtn) {
+          return;
+        }
+        commentNoticeTextEl.textContent = String(message || "").trim();
+        if (commentIdentityPromptEl) {
+          commentIdentityPromptEl.hidden = true;
+        }
+        commentNoticeOkBtn.hidden = false;
+        openCommentOverlay(commentNoticeOkBtn);
+      };
+
+      const promptCommentIdentity = () => new Promise((resolve) => {
+        if (
+          !commentNoticeOverlayEl ||
+          !commentNoticeTextEl ||
+          !commentIdentityPromptEl ||
+          !commentAliasInputEl ||
+          !commentIdentityCancelBtn ||
+          !commentIdentityContinueBtn
+        ) {
+          resolve({
+            alias: pickRandomAlias(),
+            avatar: pickRandomAvatar(),
+          });
+          return;
+        }
+
+        selectedIdentityAvatar = "";
+        commentNoticeTextEl.textContent = "Choose a name and avatar (optional).";
+        commentNoticeOkBtn.hidden = true;
+        commentIdentityPromptEl.hidden = false;
+        commentAliasInputEl.value = "";
+        renderAvatarPicker();
+
+        const onCancel = () => {
+          cleanup();
+          hideCommentNotice();
+          resolve(null);
+        };
+        const onContinue = () => {
+          const alias = sanitizeAlias(commentAliasInputEl.value) || pickRandomAlias();
+          const avatar = selectedIdentityAvatar || pickRandomAvatar();
+          commentIdentityPromptEl.hidden = true;
+          commentNoticeOkBtn.hidden = true;
+          cleanup();
+          hideCommentNotice();
+          resolve({ alias, avatar });
+        };
+        const onKeydown = (event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            onCancel();
+          }
+        };
+        const cleanup = () => {
+          commentIdentityCancelBtn.removeEventListener("click", onCancel);
+          commentIdentityContinueBtn.removeEventListener("click", onContinue);
+          commentNoticeOverlayEl.removeEventListener("keydown", onKeydown);
+        };
+
+        commentIdentityCancelBtn.addEventListener("click", onCancel);
+        commentIdentityContinueBtn.addEventListener("click", onContinue);
+        commentNoticeOverlayEl.addEventListener("keydown", onKeydown);
+        openCommentOverlay(commentAliasInputEl);
+      });
+
+      if (commentNoticeOkBtn) {
+        commentNoticeOkBtn.addEventListener("click", hideCommentNotice);
+      }
+
+      const setActiveFeed = (feedName) => {
+        const normalized = feedName === "reels" ? "reels" : "posts";
+        const targetItems = normalized === "reels" ? reelsOnly : homePosts;
+        if (!targetItems.length) {
+          if (normalized === "reels" && homePosts.length) {
+            return setActiveFeed("posts");
+          }
+          if (normalized === "posts" && reelsOnly.length) {
+            return setActiveFeed("reels");
+          }
+        }
+        activeFeed = normalized;
+
+        if (activeFeed === "posts") {
+          renderFeedGrid(postsGrid, homePosts, "posts");
+          postsGrid.hidden = false;
+          postsGrid.style.display = "grid";
+          reelsGrid.hidden = true;
+          reelsGrid.style.display = "none";
+        } else {
+          renderFeedGrid(reelsGrid, reelsOnly, "reels");
+          reelsGrid.hidden = false;
+          reelsGrid.style.display = "grid";
+          postsGrid.hidden = true;
+          postsGrid.style.display = "none";
+        }
+
+        feedTabs.forEach((tab) => {
+          tab.classList.toggle("active", tab.dataset.feed === activeFeed);
+        });
+        if (tabsContainer) {
+          tabsContainer.dataset.activeFeed = activeFeed;
+        }
+      };
+
+      applyProfile();
+
+      if (!homePosts.length && !reelsOnly.length) {
+        return;
+      }
+
+      let activeFeed = homePosts.length ? "posts" : "reels";
+      let currentIndex = 0;
+      let currentMediaIndex = 0;
+      let lastFocusedCard = null;
+      const getFeedItems = (feedName = activeFeed) => (feedName === "reels" ? reelsOnly : homePosts);
+      let activePost = getFeedItems(activeFeed)[0];
+      let activeMedia = activePost.mediaItems[0];
+      setActiveFeed(activeFeed);
+
+      const updatePostNavButtons = () => {
+        const canNavigate = getFeedItems(activeFeed).length > 1;
+        modalNavButtons.forEach((button) => {
+          button.hidden = !canNavigate;
+        });
+      };
+
+      const ensureCommentSubmitFrame = () => {
+        let frame = document.querySelector(`iframe[name="${COMMENT_FORM_TARGET_NAME}"]`);
+        if (!frame) {
+          frame = document.createElement("iframe");
+          frame.name = COMMENT_FORM_TARGET_NAME;
+          frame.title = "Comment form target";
+          frame.style.display = "none";
+          document.body.appendChild(frame);
+        }
+        return frame;
+      };
+
+      const applyCommentFormConfig = (post) => {
+        if (!commentForm || !commentInput || !commentPostIdInput) {
+          return;
+        }
+        const fallbackFormId = formIdFromPostId(
+          post && (post.postId || post.id),
+          Boolean(post && post.isReel)
+        );
+        const formId = post && typeof post.formId === "string" && post.formId.trim()
+          ? post.formId.trim()
+          : fallbackFormId;
+        const formLink = normalizeGoogleFormAction(
+          post && typeof post.formLink === "string" ? post.formLink.trim() : ""
+        );
+        const postIdVar = post && typeof post.postIdVar === "string" ? post.postIdVar.trim() : "";
+        const commentVar = post && typeof post.commentVar === "string" ? post.commentVar.trim() : "";
+        const aliasVar = post && typeof post.aliasVar === "string" ? post.aliasVar.trim() : "";
+        const avatarVar = post && typeof post.avatarVar === "string" ? post.avatarVar.trim() : "";
+        const isConfigured = Boolean(formId && formLink && postIdVar && commentVar);
+
+        if (formId) {
+          commentInput.id = formId;
+          commentInput.dataset.formId = formId;
+          if (commentLabel) {
+            commentLabel.setAttribute("for", formId);
+          }
+        }
+        commentInput.name = commentVar;
+        commentPostIdInput.name = postIdVar;
+        commentPostIdInput.value = formId;
+        if (commentAliasHiddenInput) {
+          commentAliasHiddenInput.name = aliasVar;
+          commentAliasHiddenInput.value = "";
+        }
+        if (commentAvatarHiddenInput) {
+          commentAvatarHiddenInput.name = avatarVar;
+          commentAvatarHiddenInput.value = "";
+        }
+        commentForm.action = formLink || "#";
+        commentForm.method = "POST";
+        ensureCommentSubmitFrame();
+        commentForm.target = COMMENT_FORM_TARGET_NAME;
+        commentForm.dataset.formConfigured = isConfigured ? "true" : "false";
+        if (commentSubmitButton) {
+          commentSubmitButton.disabled = !isConfigured;
+        }
+      };
+
+      const applyModalSizing = () => {
+        if (!modal.classList.contains("open")) {
+          return;
+        }
+
+        if (window.innerWidth <= 900) {
+          modalShell.style.removeProperty("width");
+          modalShell.style.removeProperty("height");
+          modalShell.style.removeProperty("margin-top");
+          modalDialog.style.removeProperty("width");
+          modalDialog.style.removeProperty("height");
+          modalDialog.style.removeProperty("grid-template-columns");
+          modalDialog.style.removeProperty("grid-template-rows");
+
+          const mobileRatio = activeMedia && Number.isFinite(activeMedia.ratio) && activeMedia.ratio > 0
+            ? activeMedia.ratio
+            : (activePost && Number.isFinite(activePost.ratio) && activePost.ratio > 0 ? activePost.ratio : 9 / 16);
+          const viewportWidth = window.innerWidth;
+          const viewportHeight = window.innerHeight;
+          const maxMediaHeight = Math.max(220, viewportHeight - 44);
+          const mediaHeight = Math.min(maxMediaHeight, viewportWidth / mobileRatio);
+          modalMedia.style.height = Math.round(mediaHeight) + "px";
+          if (modalCommentsPanel) {
+            const remainingHeight = Math.max(0, Math.round(viewportHeight - mediaHeight));
+            modalCommentsPanel.style.minHeight = remainingHeight + "px";
+          }
+          return;
+        }
+
+        modalMedia.style.removeProperty("height");
+        if (modalCommentsPanel) {
+          modalCommentsPanel.style.removeProperty("min-height");
+        }
+
+        const sideGap = 44;
+        const verticalGap = 12;
+        const commentWidth = 340;
+        const maxDialogWidth = Math.max(660, window.innerWidth - sideGap * 2);
+        const maxDialogHeight = Math.max(460, window.innerHeight - verticalGap * 2);
+        const maxMediaWidth = Math.max(240, maxDialogWidth - commentWidth);
+        const mediaRatio = activeMedia && Number.isFinite(activeMedia.ratio) && activeMedia.ratio > 0
+          ? activeMedia.ratio
+          : activePost.ratio || 1;
+        const ratio = Math.max(0.3, Math.min(3.5, mediaRatio));
+
+        let mediaWidth = Math.min(maxMediaWidth, maxDialogHeight * ratio);
+        let mediaHeight = mediaWidth / ratio;
+        if (mediaHeight > maxDialogHeight) {
+          mediaHeight = maxDialogHeight;
+          mediaWidth = mediaHeight * ratio;
+        }
+
+        const dialogWidth = mediaWidth + commentWidth;
+        const dialogHeight = mediaHeight;
+        const topGap = Math.max(8, (window.innerHeight - dialogHeight) / 2);
+
+        modalShell.style.width = dialogWidth + "px";
+        modalShell.style.height = dialogHeight + "px";
+        modalShell.style.marginTop = topGap + "px";
+        modalDialog.style.width = dialogWidth + "px";
+        modalDialog.style.height = dialogHeight + "px";
+        modalDialog.style.gridTemplateColumns = mediaWidth + "px " + commentWidth + "px";
+      };
+
+      const setPlayButtonState = () => {
+        if (!playButton) {
+          return;
+        }
+        const isPaused = modalVideo.paused;
+        playButton.classList.toggle("is-hidden", !isPaused);
+        playButton.setAttribute("aria-label", isPaused ? "Play video" : "Pause video");
+      };
+
+      const setMuteButtonState = () => {
+        if (!muteButton) {
+          return;
+        }
+        const isMuted = modalVideo.muted;
+        muteButton.classList.toggle("is-muted", isMuted);
+        muteButton.setAttribute("aria-label", isMuted ? "Unmute video" : "Mute video");
+      };
+
+      const resetVideo = () => {
+        modalVideo.pause();
+        modalVideo.currentTime = 0;
+        setPlayButtonState();
+      };
+
+      const togglePlayback = () => {
+        if (!activeMedia || activeMedia.type !== "video") {
+          return;
+        }
+        if (modalVideo.paused) {
+          modalVideo.play().catch(() => {});
+        } else {
+          modalVideo.pause();
+        }
+      };
+
+      const updateThreadControls = () => {
+        if (!threadPrevButton || !threadNextButton || !threadDots) {
+          return;
+        }
+
+        const total = activePost.mediaItems.length;
+        const showControls = total > 1;
+        threadPrevButton.classList.toggle("is-visible", showControls);
+        threadNextButton.classList.toggle("is-visible", showControls);
+        threadDots.classList.toggle("is-visible", showControls);
+        threadPrevButton.disabled = !showControls || currentMediaIndex <= 0;
+        threadNextButton.disabled = !showControls || currentMediaIndex >= total - 1;
+
+        threadDots.innerHTML = "";
+        if (!showControls) {
+          return;
+        }
+
+        for (let i = 0; i < total; i += 1) {
+          const dot = document.createElement("button");
+          dot.type = "button";
+          dot.className = "thread-dot" + (i === currentMediaIndex ? " active" : "");
+          dot.setAttribute("aria-label", "Media " + (i + 1));
+          dot.dataset.mediaIndex = String(i);
+          threadDots.appendChild(dot);
+        }
+      };
+
+      const MEDIA_SLIDE_DURATION_MS = 240;
+      let mediaSlideTimer = null;
+
+      const getMediaPreviewSrc = (mediaItem) => {
+        if (!mediaItem) {
+          return "";
+        }
+        if (mediaItem.type === "video") {
+          return mediaItem.thumbnail || mediaItem.poster || mediaItem.src || "";
+        }
+        return mediaItem.src || mediaItem.thumbnail || mediaItem.poster || "";
+      };
+
+      const clearMediaSlideTransition = () => {
+        if (mediaSlideTimer) {
+          window.clearTimeout(mediaSlideTimer);
+          mediaSlideTimer = null;
+        }
+        modalMedia.classList.remove("is-sliding");
+        modalMedia.querySelectorAll(".modal-media-slide-layer").forEach((layer) => {
+          layer.remove();
+        });
+      };
+
+      const runMediaSlideTransition = (fromMedia, toMedia, direction) => {
+        clearMediaSlideTransition();
+
+        const fromSrc = getMediaPreviewSrc(fromMedia);
+        const toSrc = getMediaPreviewSrc(toMedia);
+        if (!fromSrc || !toSrc || fromSrc === toSrc) {
+          return;
+        }
+
+        const outgoingLayer = document.createElement("div");
+        outgoingLayer.className = "modal-media-slide-layer";
+        const outgoingImage = document.createElement("img");
+        outgoingImage.src = fromSrc;
+        outgoingImage.alt = "";
+        outgoingImage.draggable = false;
+        outgoingLayer.appendChild(outgoingImage);
+
+        const incomingLayer = document.createElement("div");
+        incomingLayer.className = "modal-media-slide-layer";
+        const incomingImage = document.createElement("img");
+        incomingImage.src = toSrc;
+        incomingImage.alt = "";
+        incomingImage.draggable = false;
+        incomingLayer.appendChild(incomingImage);
+
+        const enterFrom = direction >= 0 ? 100 : -100;
+        const exitTo = direction >= 0 ? -100 : 100;
+        outgoingLayer.style.transform = "translateX(0%)";
+        incomingLayer.style.transform = "translateX(" + enterFrom + "%)";
+
+        modalMedia.appendChild(outgoingLayer);
+        modalMedia.appendChild(incomingLayer);
+        modalMedia.classList.add("is-sliding");
+
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            outgoingLayer.style.transform = "translateX(" + exitTo + "%)";
+            incomingLayer.style.transform = "translateX(0%)";
+          });
+        });
+
+        mediaSlideTimer = window.setTimeout(() => {
+          clearMediaSlideTransition();
+        }, MEDIA_SLIDE_DURATION_MS + 40);
+      };
+
+      const applyActiveMedia = () => {
+        resetVideo();
+        const isVideo = activeMedia.type === "video";
+        modalMedia.classList.toggle("is-video", isVideo);
+
+        if (isVideo) {
+          modalVideo.src = activeMedia.src;
+          modalVideo.removeAttribute("poster");
+          modalVideo.loop = true;
+          modalVideo.muted = true;
+          modalVideo.controls = false;
+          modalVideo.load();
+          setMuteButtonState();
+          modalImage.src = activeMedia.thumbnail || activeMedia.poster || activeMedia.src;
+        } else {
+          modalVideo.removeAttribute("src");
+          modalVideo.removeAttribute("poster");
+          modalVideo.load();
+          modalImage.src = activeMedia.src;
+        }
+
+        modalImage.alt = activeMedia.alt || activePost.alt;
+        if (audioBadge) {
+          audioBadge.hidden = !isVideo;
+          audioBadge.textContent = activePost.audio || "Original audio";
+        }
+
+        updateThreadControls();
+        applyModalSizing();
+      };
+
+      const setActiveMedia = (index, options = {}) => {
+        const total = activePost.mediaItems.length;
+        const clampedIndex = Math.max(0, Math.min(total - 1, index));
+        const previousMedia = activeMedia;
+        const previousIndex = currentMediaIndex;
+
+        currentMediaIndex = clampedIndex;
+        activeMedia = activePost.mediaItems[currentMediaIndex];
+        applyActiveMedia();
+
+        const requestedDirection = Number(options.direction);
+        const direction = Number.isFinite(requestedDirection)
+          ? (requestedDirection >= 0 ? 1 : -1)
+          : (clampedIndex >= previousIndex ? 1 : -1);
+        const shouldAnimate = Boolean(
+          options.animate &&
+          previousMedia &&
+          previousMedia !== activeMedia &&
+          total > 1
+        );
+        if (shouldAnimate) {
+          runMediaSlideTransition(previousMedia, activeMedia, direction);
+        } else {
+          clearMediaSlideTransition();
+        }
+      };
+
+      const setPost = (index) => {
+        const items = getFeedItems(activeFeed);
+        if (!items.length) {
+          return;
+        }
+        const normalizedIndex = ((index % items.length) + items.length) % items.length;
+        currentIndex = normalizedIndex;
+        const post = items[currentIndex];
+        activePost = post;
+        currentMediaIndex = 0;
+        activeMedia = post.mediaItems[0];
+
+        if (likeLine) {
+          likeLine.textContent = post.likes;
+        }
+        if (postDate) {
+          postDate.textContent = post.date;
+        }
+        applyCommentFormConfig(post);
+        updatePostNavButtons();
+        renderThread(post);
+        setActiveMedia(0, { animate: false });
+      };
+
+      const openModal = (index, trigger, feedName) => {
+        if (feedName) {
+          setActiveFeed(feedName);
+        }
+        if (!getFeedItems(activeFeed).length) {
+          return;
+        }
+        lastFocusedCard = trigger || null;
+        setPost(index);
+        modal.classList.add("open");
+        modal.setAttribute("aria-hidden", "false");
+        document.body.classList.add("modal-open");
+        applyModalSizing();
+      };
+
+      const closeModal = () => {
+        clearMediaSlideTransition();
+        resetVideo();
+        modal.classList.remove("open");
+        modal.setAttribute("aria-hidden", "true");
+        document.body.classList.remove("modal-open");
+        if (lastFocusedCard) {
+          lastFocusedCard.focus();
+        }
+      };
+
+      const jumpPost = (step) => {
+        const items = getFeedItems(activeFeed);
+        if (items.length <= 1) {
+          return;
+        }
+        setPost(currentIndex + step);
+      };
+
+      const jumpMedia = (step) => {
+        const total = activePost.mediaItems.length;
+        if (total <= 1) {
+          return false;
+        }
+        const target = currentMediaIndex + step;
+        if (target < 0 || target >= total) {
+          return false;
+        }
+        setActiveMedia(target, { animate: true, direction: step });
+        return true;
+      };
+
+      feedTabs.forEach((tab) => {
+        tab.addEventListener("click", () => {
+          const nextFeed = tab.dataset.feed === "reels" ? "reels" : "posts";
+          setActiveFeed(nextFeed);
+        });
+      });
+
+      const openFromCard = (card) => {
+        const feedName = card.dataset.feed === "reels" ? "reels" : "posts";
+        const index = Number(card.dataset.postIndex || "-1");
+        if (!Number.isInteger(index) || index < 0) {
+          return;
+        }
+        openModal(index, card, feedName);
+      };
+
+      [postsGrid, reelsGrid].forEach((grid) => {
+        grid.addEventListener("click", (event) => {
+          const target = event.target;
+          if (!(target instanceof Element)) {
+            return;
+          }
+          const card = target.closest(".post-card[data-feed][data-post-index]");
+          if (!card) {
+            return;
+          }
+          openFromCard(card);
+        });
+
+        grid.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            const target = event.target;
+            if (!(target instanceof Element)) {
+              return;
+            }
+            const card = target.closest(".post-card[data-feed][data-post-index]");
+            if (!card) {
+              return;
+            }
+            event.preventDefault();
+            openFromCard(card);
+          }
+        });
+      });
+
+      if (commentForm && commentInput) {
+        commentForm.addEventListener("submit", async (event) => {
+          const text = commentInput.value.trim();
+          const configured = commentForm.dataset.formConfigured === "true";
+          event.preventDefault();
+          if (!text || !configured) {
+            return;
+          }
+
+          const identity = await promptCommentIdentity();
+          if (!identity) {
+            return;
+          }
+
+          if (commentAliasHiddenInput && commentAliasHiddenInput.name) {
+            commentAliasHiddenInput.value = identity.alias;
+          }
+          if (commentAvatarHiddenInput && commentAvatarHiddenInput.name) {
+            commentAvatarHiddenInput.value = identity.avatar;
+          }
+
+          HTMLFormElement.prototype.submit.call(commentForm);
+          window.setTimeout(() => {
+            commentInput.value = "";
+            if (commentAliasHiddenInput) {
+              commentAliasHiddenInput.value = "";
+            }
+            if (commentAvatarHiddenInput) {
+              commentAvatarHiddenInput.value = "";
+            }
+            showCommentNotice(COMMENT_REVIEW_MESSAGE);
+          }, 260);
+        });
+      }
+
+      if (threadPrevButton) {
+        threadPrevButton.addEventListener("click", () => {
+          jumpMedia(-1);
+        });
+      }
+      if (threadNextButton) {
+        threadNextButton.addEventListener("click", () => {
+          jumpMedia(1);
+        });
+      }
+      if (threadDots) {
+        threadDots.addEventListener("click", (event) => {
+          const button = event.target.closest("[data-media-index]");
+          if (!button) {
+            return;
+          }
+          const mediaIndex = Number(button.getAttribute("data-media-index"));
+          if (Number.isFinite(mediaIndex)) {
+            const direction = mediaIndex > currentMediaIndex ? 1 : -1;
+            setActiveMedia(mediaIndex, {
+              animate: mediaIndex !== currentMediaIndex,
+              direction
+            });
+          }
+        });
+      }
+
+      if (playButton) {
+        playButton.addEventListener("click", togglePlayback);
+      }
+      if (muteButton) {
+        muteButton.addEventListener("click", () => {
+          if (!activeMedia || activeMedia.type !== "video") {
+            return;
+          }
+          modalVideo.muted = !modalVideo.muted;
+          setMuteButtonState();
+        });
+      }
+
+      modalVideo.addEventListener("click", togglePlayback);
+      modalVideo.addEventListener("play", setPlayButtonState);
+      modalVideo.addEventListener("pause", setPlayButtonState);
+      modalVideo.addEventListener("volumechange", setMuteButtonState);
+      modalVideo.addEventListener("loadedmetadata", () => {
+        if (!activeMedia || activeMedia.type !== "video") {
+          return;
+        }
+        if (modalVideo.videoWidth && modalVideo.videoHeight) {
+          activeMedia.ratio = modalVideo.videoWidth / modalVideo.videoHeight;
+          if (currentMediaIndex === 0) {
+            activePost.ratio = activeMedia.ratio;
+          }
+          applyModalSizing();
+        }
+      });
+      modalImage.addEventListener("load", () => {
+        if (!activeMedia || activeMedia.type !== "image") {
+          return;
+        }
+        if (modalImage.naturalWidth && modalImage.naturalHeight) {
+          activeMedia.ratio = modalImage.naturalWidth / modalImage.naturalHeight;
+          if (currentMediaIndex === 0) {
+            activePost.ratio = activeMedia.ratio;
+          }
+          applyModalSizing();
+        }
+      });
+
+      modal.addEventListener("click", (event) => {
+        const closeTrigger = event.target.closest("[data-close-modal]");
+        if (closeTrigger) {
+          closeModal();
+          return;
+        }
+        const navButton = event.target.closest("[data-step]");
+        if (navButton) {
+          const step = Number(navButton.getAttribute("data-step") || "0");
+          if (step) {
+            jumpPost(step);
+          }
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (!modal.classList.contains("open")) {
+          return;
+        }
+
+        if (event.key === "Escape") {
+          closeModal();
+        } else if (event.key === "ArrowRight") {
+          if (!jumpMedia(1)) {
+            jumpPost(1);
+          }
+        } else if (event.key === "ArrowLeft") {
+          if (!jumpMedia(-1)) {
+            jumpPost(-1);
+          }
+        } else if (event.key === " " && activeMedia && activeMedia.type === "video") {
+          const target = event.target;
+          if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) {
+            event.preventDefault();
+            togglePlayback();
+          }
+        }
+      });
+
+      window.addEventListener("resize", applyModalSizing);
+    })();
+  </script>
+</body>
+</html>

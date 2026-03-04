@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Protected nanogram</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --panel: #ffffff;
+      --panel-strong: #f7f8fa;
+      --line: #dde3eb;
+      --text: #151a23;
+      --muted: #5c6777;
+      --accent: #0095f6;
+      --accent-strong: #1877f2;
+      --error: #da375f;
+      --ok: #27834c;
+      --terminal-bg: #05070d;
+      --terminal-line: #3a4860;
+      --terminal-text: #f3f6ff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(circle at 9% 12%, rgba(255, 63, 129, 0.08), transparent 34%),
+        radial-gradient(circle at 85% 17%, rgba(255, 189, 89, 0.12), transparent 28%),
+        radial-gradient(circle at 82% 85%, rgba(0, 149, 246, 0.08), transparent 32%),
+        var(--bg);
+      color: var(--text);
+      padding: 24px 28px;
+    }
+
+    .layout {
+      width: min(1240px, 100%);
+      min-height: calc(100vh - 48px);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(320px, 430px);
+      gap: 24px;
+      align-items: stretch;
+    }
+
+    .about {
+      background: linear-gradient(170deg, rgba(255, 255, 255, 0.96), rgba(249, 251, 255, 0.9));
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: clamp(22px, 2.8vw, 34px);
+      overflow: auto;
+    }
+
+    .about h1 {
+      margin: 0;
+      max-width: 18ch;
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.08;
+      font-weight: 700;
+    }
+
+    .about-copy {
+      margin-top: 24px;
+      display: grid;
+      gap: 14px;
+    }
+
+    .about-copy p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.54;
+      max-width: 78ch;
+    }
+
+    .about-copy strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .github-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text);
+      font-weight: 700;
+      text-decoration: none;
+      border-bottom: 1px solid transparent;
+    }
+
+    .github-link:hover {
+      border-bottom-color: var(--text);
+    }
+
+    .github-icon {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
+    .access {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      gap: 0;
+      align-self: start;
+    }
+
+    .profile-preview {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 14px;
+      align-items: center;
+      background: linear-gradient(170deg, var(--panel), var(--panel-strong));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      margin-bottom: 14px;
+      box-shadow: 0 14px 30px rgba(26, 31, 41, 0.08);
+    }
+
+    .profile-preview-avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      border: 1px solid #cfd6e0;
+      object-fit: cover;
+      display: block;
+    }
+
+    .profile-preview-username {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--text);
+    }
+
+    .profile-preview-stats {
+      list-style: none;
+      margin: 8px 0 0;
+      padding: 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+    }
+
+    .profile-preview-stats strong {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .gate {
+      width: 100%;
+      background: linear-gradient(170deg, var(--panel), var(--panel-strong));
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 14px 30px rgba(26, 31, 41, 0.08);
+    }
+
+    .gate-copy-user {
+      color: var(--text);
+      font-weight: 700;
+    }
+
+    .gate p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    form {
+      margin-top: 18px;
+      display: grid;
+      gap: 10px;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    input {
+      width: 100%;
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 10px;
+      height: 42px;
+      padding: 0 12px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(78, 161, 255, 0.18);
+    }
+
+    button {
+      border: 0;
+      border-radius: 10px;
+      height: 42px;
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      background: linear-gradient(180deg, var(--accent), var(--accent-strong));
+      cursor: pointer;
+    }
+
+    button[disabled] {
+      cursor: wait;
+      opacity: 0.68;
+    }
+
+    .terminal {
+      width: 100%;
+      border-radius: 14px;
+      border: 1px solid transparent;
+      background: linear-gradient(170deg, var(--panel), var(--panel-strong));
+      min-height: 0;
+      max-height: 0;
+      padding: 0 14px;
+      overflow: hidden;
+      opacity: 0;
+      transform: translateY(-10px);
+      transition:
+        max-height 0.42s ease,
+        opacity 0.28s ease,
+        transform 0.42s ease,
+        padding 0.32s ease,
+        border-color 0.32s ease,
+        margin-top 0.42s ease,
+        box-shadow 0.32s ease;
+    }
+
+    .terminal.open {
+      margin-top: 14px;
+      max-height: 320px;
+      padding: 14px;
+      border-color: var(--line);
+      box-shadow: 0 14px 30px rgba(26, 31, 41, 0.08);
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .status {
+      margin: 0;
+      padding: 0;
+      min-height: 0;
+      height: 168px;
+      overflow: auto;
+      font-size: 12px;
+      line-height: 1.48;
+      color: #151a23;
+      font-weight: 700;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+
+    .continue-btn {
+      margin-top: 12px;
+      width: 100%;
+      display: block;
+    }
+
+    .continue-btn[hidden] {
+      display: none;
+    }
+
+    @media (max-width: 980px) {
+      body {
+        padding: 16px;
+      }
+
+      .layout {
+        min-height: auto;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+
+      .access {
+        order: -1;
+      }
+
+      .profile-preview {
+        grid-template-columns: 62px minmax(0, 1fr);
+      }
+
+      .profile-preview-avatar {
+        width: 62px;
+        height: 62px;
+      }
+
+      .terminal {
+        margin-top: 0;
+      }
+
+      .terminal.open {
+        max-height: 280px;
+      }
+
+      .status {
+        height: 148px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="layout">
+    <section class="about">
+      <h1>Welcome to Nanogram.</h1>
+      <div class="about-copy">
+        <p>
+          The original idea of social media was to share pictures and see what your friends were
+          doing. These days, seeing your friends' pictures and engaging with friends has almost
+          disappeared. The only engagement that social media strongly promotes is sharing reels. A
+          feed that used to be mostly your friends' posts is now filled with random posts from the
+          internet that an algorithm decided are worth your time.
+        </p>
+        <p>
+          This is a vibe-coded attempt to host my profile outside social media. This project is not
+          better than social media, and it is not meant to replace it. It is simply an expression
+          of my thoughts on the current state of social media.
+        </p>
+        <p>
+          In the future, I want to add a feature that links my friends' profiles, so anyone can
+          visit them like any other social platform. With nanogram, you have full freedom over
+          customization. You can choose any background or animation for your profile.
+        </p>
+        <p>
+          The site collects login attempts, so if you want to communicate with me privately, you
+          can submit messages as password attempts, and I might read them now and then.
+        </p>
+        <p>
+          The site is slow because all media is stored at the highest possible quality and encrypted
+          with a password. The site decrypts only after the one and only password is entered. If you
+          do not have the password, talk to me in real life :-)
+        </p>
+        <p>
+          This project is now open source on
+          <a class="github-link" href="https://github.com/X3eRo0/nanogram" target="_blank" rel="noopener noreferrer">
+            <svg class="github-icon" viewBox="0 0 20 20" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" focusable="false">
+              <g id="Page-1" stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+                <g id="Dribbble-Light-Preview" transform="translate(-140.000000, -7559.000000)" fill="currentColor">
+                  <g id="icons" transform="translate(56.000000, 160.000000)">
+                    <path d="M94,7399 C99.523,7399 104,7403.59 104,7409.253 C104,7413.782 101.138,7417.624 97.167,7418.981 C96.66,7419.082 96.48,7418.762 96.48,7418.489 C96.48,7418.151 96.492,7417.047 96.492,7415.675 C96.492,7414.719 96.172,7414.095 95.813,7413.777 C98.04,7413.523 100.38,7412.656 100.38,7408.718 C100.38,7407.598 99.992,7406.684 99.35,7405.966 C99.454,7405.707 99.797,7404.664 99.252,7403.252 C99.252,7403.252 98.414,7402.977 96.505,7404.303 C95.706,7404.076 94.85,7403.962 94,7403.958 C93.15,7403.962 92.295,7404.076 91.497,7404.303 C89.586,7402.977 88.746,7403.252 88.746,7403.252 C88.203,7404.664 88.546,7405.707 88.649,7405.966 C88.01,7406.684 87.619,7407.598 87.619,7408.718 C87.619,7412.646 89.954,7413.526 92.175,7413.785 C91.889,7414.041 91.63,7414.493 91.54,7415.156 C90.97,7415.418 89.522,7415.871 88.63,7414.304 C88.63,7414.304 88.101,7413.319 87.097,7413.247 C87.097,7413.247 86.122,7413.234 87.029,7413.87 C87.029,7413.87 87.684,7414.185 88.139,7415.37 C88.139,7415.37 88.726,7417.2 91.508,7416.58 C91.513,7417.437 91.522,7418.245 91.522,7418.489 C91.522,7418.76 91.338,7419.077 90.839,7418.982 C86.865,7417.627 84,7413.783 84,7409.253 C84,7403.59 88.478,7399 94,7399"></path>
+                  </g>
+                </g>
+              </g>
+            </svg>
+            GitHub
+          </a>.
+        </p>
+        <p>
+          Configure your build from a config file and refer to the GitHub repository for full setup,
+          recovery, and build instructions.
+        </p>
+      </div>
+    </section>
+
+    <aside class="access" aria-live="polite">
+      <section class="profile-preview" aria-label="Profile">
+        <img
+          id="homeProfileImage"
+          class="profile-preview-avatar"
+          src="__HOME_PROFILE_IMAGE_DATA_URI__"
+          alt="Profile picture"
+        >
+        <div class="profile-preview-meta">
+          <p id="homeProfileUsername" class="profile-preview-username">profile_user</p>
+          <ul class="profile-preview-stats" aria-label="Profile stats">
+            <li><strong id="homeProfilePosts">0</strong> posts</li>
+            <li><strong id="homeProfileFollowers">0</strong> followers</li>
+            <li><strong id="homeProfileFollowing">0</strong> following</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="gate">
+        <p>
+          This page is password protected, reach out to
+          <span id="gateCopyUsername" class="gate-copy-user">profile_user</span>
+          to gain access.
+        </p>
+
+        <form id="unlockForm" autocomplete="off">
+          <label for="cipherkey">Password</label>
+          <input id="cipherkey" type="password" required placeholder="Enter password">
+          <button id="unlockBtn" type="submit">Unlock</button>
+        </form>
+      </section>
+
+      <section class="terminal" aria-label="Decryption status terminal">
+        <pre id="status" class="status"></pre>
+        <button id="continueBtn" class="continue-btn" type="button" hidden>Continue</button>
+      </section>
+    </aside>
+  </main>
+
+  <script>
+    (() => {
+      const BUNDLE_PATH = "site.bundle.json";
+      const FORMS_CONFIG_PATH = "forms.json";
+      const FAILED_ATTEMPT_FORM_REF = "cipherkey";
+      const FAILED_ATTEMPT_FRAME_NAME = "failed_attempt_iframe";
+      const FAILED_ATTEMPT_FORM_ID = "failedAttemptForm";
+      const form = document.getElementById("unlockForm");
+      const input = document.getElementById("cipherkey");
+      const button = document.getElementById("unlockBtn");
+      const statusEl = document.getElementById("status");
+      const continueBtn = document.getElementById("continueBtn");
+      const terminalEl = document.querySelector(".terminal");
+      const homeProfileUsernameEl = document.getElementById("homeProfileUsername");
+      const gateCopyUsernameEl = document.getElementById("gateCopyUsername");
+      const encoder = new TextEncoder();
+      const decoder = new TextDecoder();
+      const ciphertextPayloadCache = new Map();
+      const statusHistory = [];
+      const MAX_STATUS_LINES = 26;
+      let readyAppHtml = "";
+
+      if (homeProfileUsernameEl && gateCopyUsernameEl) {
+        const profileName = homeProfileUsernameEl.textContent ? homeProfileUsernameEl.textContent.trim() : "";
+        if (profileName) {
+          gateCopyUsernameEl.textContent = profileName;
+        }
+      }
+
+      const appendStatusLine = (line) => {
+        if (!statusEl) {
+          return;
+        }
+        const text = String(line || "").trim();
+        if (!text) {
+          return;
+        }
+        if (statusHistory[statusHistory.length - 1] === text) {
+          return;
+        }
+        statusHistory.push(text);
+        if (statusHistory.length > MAX_STATUS_LINES) {
+          statusHistory.splice(0, statusHistory.length - MAX_STATUS_LINES);
+        }
+        statusEl.textContent = statusHistory.join("\n");
+        statusEl.scrollTop = statusEl.scrollHeight;
+      };
+
+      if (statusEl && statusEl.textContent) {
+        appendStatusLine(statusEl.textContent);
+      }
+
+      const appendLog = (message) => {
+        if (!statusEl) {
+          return;
+        }
+        appendStatusLine(String(message || ""));
+      };
+
+      const resetLog = (line = "") => {
+        statusHistory.length = 0;
+        if (statusEl) {
+          statusEl.className = "status";
+          statusEl.textContent = "";
+        }
+        if (line) {
+          appendStatusLine(line);
+        }
+      };
+
+      const setTerminalOpen = (isOpen) => {
+        if (!terminalEl) {
+          return;
+        }
+        terminalEl.classList.toggle("open", Boolean(isOpen));
+      };
+
+      const normalizeDisplayPath = (path) => {
+        const value = String(path || "").trim();
+        if (!value) {
+          return "/unknown";
+        }
+        if (value.startsWith("/")) {
+          return value;
+        }
+        return "/" + value.replace(/^\.?\//, "");
+      };
+
+      const truncatePath = (path) => {
+        const value = normalizeDisplayPath(path);
+        const match = value.match(/^(.*\/)([^/]+)\.json$/i);
+        if (match) {
+          const prefix = match[1];
+          const stem = match[2];
+          if (stem.length > 14) {
+            return `${prefix}${stem.slice(0, 7)}..${stem.slice(-4)}.json`;
+          }
+        }
+        if (value.length <= 34) {
+          return value;
+        }
+        return `${value.slice(0, 20)}..${value.slice(-12)}`;
+      };
+
+      const base64ByteLength = (value) => {
+        const normalized = String(value || "").replace(/\s+/g, "");
+        if (!normalized) {
+          return 0;
+        }
+        const padding = normalized.endsWith("==") ? 2 : (normalized.endsWith("=") ? 1 : 0);
+        return Math.max(0, Math.floor((normalized.length * 3) / 4) - padding);
+      };
+
+      const formatSize = (bytes) => {
+        const raw = Number(bytes);
+        if (!Number.isFinite(raw) || raw <= 0) {
+          return "0B";
+        }
+        if (raw >= 1024 * 1024 * 1024) {
+          return `${(raw / (1024 * 1024 * 1024)).toFixed(1)}GB`;
+        }
+        if (raw >= 1024 * 1024) {
+          return `${Math.round(raw / (1024 * 1024))}MB`;
+        }
+        if (raw >= 1024) {
+          return `${Math.round(raw / 1024)}KB`;
+        }
+        return `${Math.round(raw)}B`;
+      };
+
+      const markReadyState = (isReady) => {
+        if (!continueBtn) {
+          return;
+        }
+        continueBtn.hidden = !isReady;
+        continueBtn.disabled = !isReady;
+      };
+
+      if (!window.crypto || !window.crypto.subtle) {
+        setTerminalOpen(true);
+        resetLog("[-] This browser does not support Web Crypto.");
+        return;
+      }
+
+      const base64ToBytes = (value) => {
+        const bin = atob(value);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i += 1) {
+          bytes[i] = bin.charCodeAt(i);
+        }
+        return bytes;
+      };
+
+      const bytesToHex = (buffer) => {
+        const bytes = new Uint8Array(buffer);
+        let out = "";
+        for (let i = 0; i < bytes.length; i += 1) {
+          out += bytes[i].toString(16).padStart(2, "0");
+        }
+        return out;
+      };
+
+      const sha256Hex = async (text) => {
+        const digest = await crypto.subtle.digest("SHA-256", encoder.encode(text));
+        return bytesToHex(digest);
+      };
+
+      const normalizeGoogleFormAction = (value) => {
+        const text = typeof value === "string" ? value.trim() : "";
+        if (!text) {
+          return "";
+        }
+        try {
+          const url = new URL(text, window.location.href);
+          if (url.hostname.toLowerCase() === "docs.google.com" && /\/forms\/d\/e\//i.test(url.pathname)) {
+            url.pathname = url.pathname.replace(/\/viewform\/?$/i, "/formResponse");
+            url.search = "";
+            url.hash = "";
+            return url.toString();
+          }
+        } catch (_error) {
+          return text;
+        }
+        return text;
+      };
+
+      const loadFormsConfig = async () => {
+        const config = {
+          cipherkey: {
+            formLink: "",
+            variable: "",
+          },
+        };
+        try {
+          const response = await fetch(FORMS_CONFIG_PATH, { cache: "no-store" });
+          if (!response.ok) {
+            return config;
+          }
+          const payload = await response.json();
+          if (!Array.isArray(payload)) {
+            return config;
+          }
+          for (const entry of payload) {
+            if (!entry || typeof entry !== "object") {
+              continue;
+            }
+            const entryType = String(entry.type || "").trim().toLowerCase();
+            const formId = String(entry["form-id"] || "").trim();
+            if (entryType === "login" || formId === FAILED_ATTEMPT_FORM_REF) {
+              config.cipherkey.formLink = normalizeGoogleFormAction(entry["form-link"]);
+              config.cipherkey.variable = String(entry.variable || "").trim();
+            }
+          }
+          return config;
+        } catch (_error) {
+          return config;
+        }
+      };
+
+      const formsConfigPromise = loadFormsConfig();
+
+      const ensureFailedAttemptForm = (formLink, variable) => {
+        if (!formLink || !variable) {
+          return { telemetryForm: null, field: null };
+        }
+        let frame = document.querySelector(`iframe[name="${FAILED_ATTEMPT_FRAME_NAME}"]`);
+        if (!frame) {
+          frame = document.createElement("iframe");
+          frame.name = FAILED_ATTEMPT_FRAME_NAME;
+          frame.title = "Failed attempt telemetry";
+          frame.style.display = "none";
+          document.body.appendChild(frame);
+        }
+
+        let telemetryForm = document.getElementById(FAILED_ATTEMPT_FORM_ID);
+        if (!telemetryForm) {
+          telemetryForm = document.createElement("form");
+          telemetryForm.id = FAILED_ATTEMPT_FORM_ID;
+          telemetryForm.method = "POST";
+          telemetryForm.target = FAILED_ATTEMPT_FRAME_NAME;
+          telemetryForm.style.display = "none";
+
+          const hiddenField = document.createElement("input");
+          hiddenField.type = "hidden";
+          telemetryForm.appendChild(hiddenField);
+          document.body.appendChild(telemetryForm);
+        }
+
+        telemetryForm.action = normalizeGoogleFormAction(formLink);
+        let field = telemetryForm.querySelector("input[type=\"hidden\"]");
+        if (!(field instanceof HTMLInputElement)) {
+          field = document.createElement("input");
+          field.type = "hidden";
+          telemetryForm.appendChild(field);
+        }
+        field.name = variable;
+        return { telemetryForm, field };
+      };
+
+      const reportAttempt = async (entry) => {
+        try {
+          const formConfig = (await formsConfigPromise).cipherkey;
+          const formLink = formConfig && typeof formConfig.formLink === "string"
+            ? formConfig.formLink.trim()
+            : "";
+          const variable = formConfig && typeof formConfig.variable === "string"
+            ? formConfig.variable.trim()
+            : "";
+          const { telemetryForm, field } = ensureFailedAttemptForm(formLink, variable);
+          if (telemetryForm && field instanceof HTMLInputElement) {
+            field.value = String(entry || "");
+            telemetryForm.submit();
+          }
+        } catch (_error) {
+          // Telemetry should never block unlock flow or user feedback.
+        }
+      };
+
+      const deriveKey = async (password, kdf) => {
+        const keyMaterial = await crypto.subtle.importKey(
+          "raw",
+          encoder.encode(password),
+          { name: "PBKDF2" },
+          false,
+          ["deriveKey"]
+        );
+
+        return crypto.subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            hash: "SHA-256",
+            salt: base64ToBytes(kdf.salt_b64),
+            iterations: Number(kdf.iterations),
+          },
+          keyMaterial,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["decrypt"]
+        );
+      };
+
+      const fetchCiphertextPayload = async (entry) => {
+        const ciphertextJsonPath = String(entry && entry.ciphertext_json ? entry.ciphertext_json : "").trim();
+        if (!ciphertextJsonPath) {
+          throw new Error("Encrypted entry is missing ciphertext_json path.");
+        }
+        if (ciphertextPayloadCache.has(ciphertextJsonPath)) {
+          return ciphertextPayloadCache.get(ciphertextJsonPath);
+        }
+
+        const response = await fetch(ciphertextJsonPath, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(`Encrypted payload was not found: ${ciphertextJsonPath}`);
+        }
+        const payload = await response.json();
+        const ciphertextB64 = payload && typeof payload.ciphertext_b64 === "string"
+          ? payload.ciphertext_b64
+          : "";
+        if (!ciphertextB64) {
+          throw new Error(`Encrypted payload format is invalid: ${ciphertextJsonPath}`);
+        }
+        const loadedPayload = {
+          ciphertextB64,
+          byteLength: base64ByteLength(ciphertextB64),
+          sourcePath: ciphertextJsonPath
+        };
+        ciphertextPayloadCache.set(ciphertextJsonPath, loadedPayload);
+        return loadedPayload;
+      };
+
+      const decryptEntryFromPayload = async (key, entry, payload) => {
+        const plaintext = await crypto.subtle.decrypt(
+          {
+            name: "AES-GCM",
+            iv: base64ToBytes(entry.iv_b64),
+          },
+          key,
+          base64ToBytes(payload.ciphertextB64)
+        );
+        return new Uint8Array(plaintext);
+      };
+
+      const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+      const normalizePosixPath = (value) => String(value || "")
+        .replace(/\\/g, "/")
+        .replace(/^\.\/+/, "")
+        .replace(/\/{2,}/g, "/");
+
+      const dirnamePosixPath = (value) => {
+        const path = normalizePosixPath(value);
+        const idx = path.lastIndexOf("/");
+        if (idx < 0) {
+          return "";
+        }
+        return path.slice(0, idx);
+      };
+
+      const relativePosixPath = (fromDir, toPath) => {
+        const fromParts = normalizePosixPath(fromDir).split("/").filter(Boolean);
+        const toParts = normalizePosixPath(toPath).split("/").filter(Boolean);
+        let i = 0;
+        while (i < fromParts.length && i < toParts.length && fromParts[i] === toParts[i]) {
+          i += 1;
+        }
+        const upCount = Math.max(0, fromParts.length - i);
+        const relParts = [];
+        for (let j = 0; j < upCount; j += 1) {
+          relParts.push("..");
+        }
+        relParts.push(...toParts.slice(i));
+        return relParts.join("/");
+      };
+
+      const stripLeadingKnownRoot = (value) => {
+        const path = normalizePosixPath(value);
+        const roots = ["src/", "build/"];
+        for (const root of roots) {
+          if (path.startsWith(root)) {
+            return path.slice(root.length);
+          }
+        }
+        const markers = ["/src/", "/build/"];
+        for (const marker of markers) {
+          const idx = path.lastIndexOf(marker);
+          if (idx >= 0) {
+            return path.slice(idx + marker.length);
+          }
+        }
+        return "";
+      };
+
+      const rewriteAssetPaths = (htmlText, replacements) => {
+        const pairs = Array.from(replacements.entries()).sort((a, b) => b[0].length - a[0].length);
+        let out = htmlText;
+        for (const [originalPath, blobUrl] of pairs) {
+          out = out.replace(new RegExp(escapeRegex(originalPath), "g"), blobUrl);
+        }
+        return out;
+      };
+
+      const unlock = async (password) => {
+        appendLog("[+] Loading encrypted bundle...");
+        const response = await fetch(BUNDLE_PATH, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("Encrypted bundle was not found.");
+        }
+        const bundle = await response.json();
+        if (!bundle || !Array.isArray(bundle.files) || !bundle.kdf) {
+          throw new Error("Encrypted bundle format is invalid.");
+        }
+
+        appendLog("[+] Verifying password...");
+        const enteredHash = await sha256Hex(password);
+        void reportAttempt(password);
+        if (enteredHash !== bundle.password_hash_sha256) {
+          throw new Error("Wrong password.");
+        }
+
+        appendLog("[+] Password accepted.");
+        appendLog("[+] Deriving decryption key...");
+        const key = await deriveKey(password, bundle.kdf);
+
+        const appPath = normalizePosixPath(String(bundle.app_html_path || "src/nanogram.app.html"));
+        const appDir = dirnamePosixPath(appPath);
+        const entries = new Map(
+          bundle.files.map((entry) => [normalizePosixPath(String(entry.path)), entry])
+        );
+        const appEntry = entries.get(appPath);
+        if (!appEntry) {
+          throw new Error("App HTML entry is missing from encrypted bundle.");
+        }
+
+        const replacements = new Map();
+        let appHtml = "";
+        let totalFetchedBytes = 0;
+        const plan = [appEntry, ...Array.from(entries.values()).filter((entry) => entry !== appEntry)];
+
+        for (const entry of plan) {
+          const entryPath = normalizePosixPath(String(entry.path));
+          const displayPath = truncatePath(entry && entry.ciphertext_json);
+          let payload = null;
+          try {
+            payload = await fetchCiphertextPayload(entry);
+            totalFetchedBytes += payload.byteLength;
+            const bytes = await decryptEntryFromPayload(key, entry, payload);
+            appendLog(`[+] Decrypting ${displayPath} ${formatSize(payload.byteLength)} OK`);
+            if (entryPath === appPath) {
+              appHtml = decoder.decode(bytes);
+            } else {
+              const blob = new Blob([bytes], { type: entry.mime || "application/octet-stream" });
+              const blobUrl = URL.createObjectURL(blob);
+              replacements.set(entryPath, blobUrl);
+              const pathFromApp = relativePosixPath(appDir, entryPath);
+              if (pathFromApp && pathFromApp !== "." && pathFromApp !== entryPath) {
+                replacements.set(pathFromApp, blobUrl);
+                replacements.set(`./${pathFromApp}`, blobUrl);
+              }
+              const rootRelativePath = stripLeadingKnownRoot(entryPath);
+              if (rootRelativePath) {
+                replacements.set(rootRelativePath, blobUrl);
+                replacements.set(`./${rootRelativePath}`, blobUrl);
+                replacements.set(`src/${rootRelativePath}`, blobUrl);
+                replacements.set(`./src/${rootRelativePath}`, blobUrl);
+              }
+            }
+          } catch (error) {
+            const sizeLabel = payload && Number.isFinite(payload.byteLength)
+              ? ` ${formatSize(payload.byteLength)}`
+              : "";
+            appendLog(`[+] Decrypting ${displayPath}${sizeLabel} FAIL`);
+            throw error;
+          }
+        }
+
+        if (!appHtml) {
+          throw new Error("App HTML could not be decrypted.");
+        }
+
+        appendLog("[+] All assets decrypted!");
+        appendLog(`[+] Total data fetched ${formatSize(totalFetchedBytes)}`);
+        return {
+          appHtml: rewriteAssetPaths(appHtml, replacements)
+        };
+      };
+
+      const openDecryptedApp = () => {
+        if (!readyAppHtml) {
+          return;
+        }
+        appendLog("[+] Launching nanogram...");
+        document.open();
+        document.write(readyAppHtml);
+        document.close();
+      };
+
+      if (continueBtn) {
+        continueBtn.addEventListener("click", openDecryptedApp);
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const password = input.value;
+        if (!password) {
+          return;
+        }
+
+        setTerminalOpen(true);
+        readyAppHtml = "";
+        markReadyState(false);
+        resetLog("[+] Starting unlock...");
+        button.disabled = true;
+        input.disabled = true;
+
+        try {
+          const unlocked = await unlock(password);
+          readyAppHtml = unlocked.appHtml;
+          appendLog("[+] Ready. Click Continue.");
+          markReadyState(true);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          appendLog(`[-] ${message}`);
+          button.disabled = false;
+          input.disabled = false;
+          markReadyState(false);
+          input.focus();
+          input.select();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
