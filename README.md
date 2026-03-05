@@ -45,6 +45,7 @@ All configuration lives in one file (default template path: `./build/config`).
 
 - Relative paths are resolved from the project root.
 - Boolean values accepted: `1`, `0`, `true`, `false`, `yes`, `no`, `on`, `off`.
+- Size values (for `LAZY_LOAD_SIZE_MAX`) accept raw bytes or unit suffixes like `512KB`, `12MB`, `1GB`.
 
 ### Required Keys
 
@@ -71,6 +72,7 @@ All configuration lives in one file (default template path: `./build/config`).
 | `BUNDLE_SCRIPT` | `./src/scripts/build_protected_bundle.mjs` | Bundle/encryption script path |
 | `DEBUG_KDF_ITERATIONS` | `10000` | PBKDF2 iterations for debug builds |
 | `RELEASE_KDF_ITERATIONS` | `250000` | PBKDF2 iterations for release builds |
+| `LAZY_LOAD_SIZE_MAX` | `15728640` | Max plaintext bytes loaded eagerly at unlock; larger media loads on click (`0` disables) |
 | `COMMENT_AVATAR_EMOJIS` | built-in list | Emoji pool for avatar fallback/selection |
 
 ### Comment Import Keys (`nanogram.sh comments` defaults)
@@ -80,10 +82,9 @@ These keys are consumed by `nanogram.sh comments` (not by `debug`, `release`, or
 | Key | Default | Description |
 | --- | --- | --- |
 | `COMMENTS_CSV` | empty | CSV path/URL source |
-| `COMMENTS_GOOGLE_SHEET_ID` | empty | Google Sheet ID source |
-| `COMMENTS_GOOGLE_SHEET_RANGE` | `A:Z` | Sheet A1 range |
-| `COMMENTS_GOOGLE_ACCESS_TOKEN` | empty | OAuth access token |
-| `COMMENTS_GOOGLE_ACCESS_TOKEN_ENV` | `GOOGLE_ACCESS_TOKEN` | Env var name for OAuth token |
+| `COMMENTS_GOOGLE_SHEET_ID` | empty | Google Sheet ID source (required for Sheets mode) |
+| `COMMENTS_GOOGLE_ACCESS_TOKEN` | empty | OAuth access token (required unless using `_ENV`) |
+| `COMMENTS_GOOGLE_ACCESS_TOKEN_ENV` | `GOOGLE_ACCESS_TOKEN` | Env var name for OAuth token (required unless using direct token) |
 | `COMMENTS_ENCODING` | `utf-8-sig` | CSV encoding |
 | `COMMENTS_POST_ID_COLUMN` | `post-id` | Post-id column header |
 | `COMMENTS_AVATAR_COLUMN` | `avatar` | Avatar column header |
@@ -112,25 +113,14 @@ These keys are consumed by `nanogram.sh comments` (not by `debug`, `release`, or
 
 Comment operations are invoked only through `nanogram.sh comments`.
 
-Google Sheets (private sheet):
+Google Sheets mode reads source/auth from config:
+- `COMMENTS_GOOGLE_SHEET_ID`
+- `COMMENTS_GOOGLE_ACCESS_TOKEN` or `COMMENTS_GOOGLE_ACCESS_TOKEN_ENV`
+
+Run:
 
 ```bash
-./nanogram.sh comments \
-  --config ./build/config \
-  --sheet-id "<SHEET_ID>" \
-  --sheet-range "Form Responses 1!A:Z" \
-  --access-token "$(gcloud auth print-access-token)"
-```
-
-Google Sheets token from env var:
-
-```bash
-export GOOGLE_ACCESS_TOKEN="$(gcloud auth print-access-token)"
-./nanogram.sh comments \
-  --config ./build/config \
-  --sheet-id "<SHEET_ID>" \
-  --sheet-range "Form Responses 1!A:Z" \
-  --access-token-env GOOGLE_ACCESS_TOKEN
+./nanogram.sh comments --config ./build/config
 ```
 
 CSV source:

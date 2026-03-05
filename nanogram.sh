@@ -21,13 +21,13 @@ CFG_COMMENT_AVATAR_EMOJIS=""
 CFG_THEME_DIR=""
 CFG_DEBUG_ITERATIONS=""
 CFG_RELEASE_ITERATIONS=""
+CFG_LAZY_LOAD_SIZE_MAX_BYTES=""
 CFG_LOGIN_PASSWORD=""
 CFG_TEST_PASSWORD=""
 CFG_IMPORT_COMMENTS_SCRIPT="$SCRIPT_DIR/src/scripts/import_sheet_comments.py"
 
 IMPORT_COMMENTS_CSV=""
 IMPORT_COMMENTS_GOOGLE_SHEET_ID=""
-IMPORT_COMMENTS_GOOGLE_SHEET_RANGE=""
 IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN=""
 IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV=""
 IMPORT_COMMENTS_ENCODING=""
@@ -110,10 +110,6 @@ Notes:
 
 Comments Command Options:
   --csv <path|url>                     Import comments from CSV file/URL.
-  --sheet-id <id>                      Import comments from Google Sheets API.
-  --sheet-range <a1>                   Sheets API A1 range (default: A:Z).
-  --access-token <tok>                 OAuth bearer token for Sheets API mode.
-  --access-token-env <name>            Env var name for Sheets API token.
   --encoding <enc>                     CSV encoding override (default utf-8-sig).
   --post-id-column <name>              CSV post-id column header name.
   --avatar-column <name>               CSV avatar column header name.
@@ -122,7 +118,11 @@ Comments Command Options:
   --default-name <name>                Fallback alias for empty names.
   --create-missing                     Create metadata files for missing post ids.
   --dry-run                            Parse and report without writing metadata.
-  (same options can be set in config as COMMENTS_* keys; CLI flags take precedence)
+  Google Sheets mode:
+    - Requires --config.
+    - Reads sheet id/token from config keys:
+      COMMENTS_GOOGLE_SHEET_ID and COMMENTS_GOOGLE_ACCESS_TOKEN (or _ENV).
+    - CLI --sheet-id/--access-token are ignored in favor of config values.
 USAGE
 }
 
@@ -160,6 +160,10 @@ RECOVER_SCRIPT="./src/scripts/recover_nanogram_export.py"
 BUNDLE_SCRIPT="./src/scripts/build_protected_bundle.mjs"
 DEBUG_KDF_ITERATIONS="10000"
 RELEASE_KDF_ITERATIONS="250000"
+# Max plaintext asset size loaded eagerly at unlock.
+# Files above this threshold are decrypted lazily on click.
+# Accepts bytes or units like 512KB, 12MB, 1GB. Set 0 to disable lazy loading.
+LAZY_LOAD_SIZE_MAX="15728640"
 # JSON array string or comma/newline-separated list.
 COMMENT_AVATAR_EMOJIS='["👶","🧒","👦","👧","🧑","👱","👨","🧔","🧔‍♂️","🧔‍♀️","👨‍🦰","👨‍🦱","👨‍🦳","👨‍🦲","👩","👩‍🦰","🧑‍🦰","👩‍🦱","🧑‍🦱","👩‍🦳","🧑‍🦳","👩‍🦲","🧑‍🦲","👱‍♀️","👱‍♂️","🧓","👴","👵","🧏","🧏‍♂️","🧏‍♀️","👳","👳‍♂️","👳‍♀️","👲","🧕","👼","🗣️","👤","👥","🫂"]'
 
@@ -167,7 +171,6 @@ COMMENT_AVATAR_EMOJIS='["👶","🧒","👦","👧","🧑","👱","👨","🧔",
 # Set exactly one source (COMMENTS_CSV or COMMENTS_GOOGLE_SHEET_ID).
 COMMENTS_CSV=""
 COMMENTS_GOOGLE_SHEET_ID=""
-COMMENTS_GOOGLE_SHEET_RANGE="A:Z"
 COMMENTS_GOOGLE_ACCESS_TOKEN=""
 COMMENTS_GOOGLE_ACCESS_TOKEN_ENV="GOOGLE_ACCESS_TOKEN"
 COMMENTS_ENCODING="utf-8-sig"
@@ -215,6 +218,44 @@ ensure_safe_clear_dir() {
 is_valid_positive_int() {
   local value="$1"
   [[ "$value" =~ ^[0-9]+$ ]] && (( value > 0 ))
+}
+
+parse_size_to_bytes() {
+  local raw="$1"
+  local value="${raw//[[:space:]]/}"
+  if [[ -z "$value" ]]; then
+    printf '0\n'
+    return 0
+  fi
+  if [[ ! "$value" =~ ^([0-9]+)([A-Za-z]*)$ ]]; then
+    return 1
+  fi
+
+  local amount="${BASH_REMATCH[1]}"
+  local unit="${BASH_REMATCH[2],,}"
+  local multiplier=1
+  case "$unit" in
+    ""|b)
+      multiplier=1
+      ;;
+    k|kb|kib)
+      multiplier=1024
+      ;;
+    m|mb|mib)
+      multiplier=$((1024 * 1024))
+      ;;
+    g|gb|gib)
+      multiplier=$((1024 * 1024 * 1024))
+      ;;
+    t|tb|tib)
+      multiplier=$((1024 * 1024 * 1024 * 1024))
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+
+  printf '%s\n' "$((amount * multiplier))"
 }
 
 is_http_url() {
@@ -278,7 +319,7 @@ validate_comment_import_options() {
   fi
 
   if (( has_csv == 1 )); then
-    if [[ -n "${IMPORT_COMMENTS_GOOGLE_SHEET_RANGE// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
+    if [[ -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
       warn "Google Sheets-specific comment import options were provided with --csv and will be ignored"
     fi
   fi
@@ -295,9 +336,6 @@ build_comment_import_cmd() {
     COMMENT_IMPORT_CMD+=(--csv "$(resolve_build_input_source "$IMPORT_COMMENTS_CSV")")
   else
     COMMENT_IMPORT_CMD+=(--google-sheet-id "$IMPORT_COMMENTS_GOOGLE_SHEET_ID")
-    if [[ -n "${IMPORT_COMMENTS_GOOGLE_SHEET_RANGE// }" ]]; then
-      COMMENT_IMPORT_CMD+=(--google-sheet-range "$IMPORT_COMMENTS_GOOGLE_SHEET_RANGE")
-    fi
     if [[ -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" ]]; then
       COMMENT_IMPORT_CMD+=(--google-access-token "$IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN")
     fi
@@ -379,11 +417,6 @@ parse_comments_command_option() {
       IMPORT_COMMENTS_GOOGLE_SHEET_ID="$2"
       PARSE_CONSUMED=2
       ;;
-    --sheet-range|--google-sheet-range)
-      [[ $# -ge 2 ]] || fatal "--sheet-range requires a value"
-      IMPORT_COMMENTS_GOOGLE_SHEET_RANGE="$2"
-      PARSE_CONSUMED=2
-      ;;
     --access-token|--google-access-token)
       [[ $# -ge 2 ]] || fatal "--access-token requires a value"
       IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN="$2"
@@ -459,9 +492,6 @@ load_comment_import_defaults_from_config() {
   fi
   if [[ -z "${IMPORT_COMMENTS_GOOGLE_SHEET_ID// }" && -n "${COMMENTS_GOOGLE_SHEET_ID:-}" ]]; then
     IMPORT_COMMENTS_GOOGLE_SHEET_ID="$COMMENTS_GOOGLE_SHEET_ID"
-  fi
-  if [[ -z "${IMPORT_COMMENTS_GOOGLE_SHEET_RANGE// }" && -n "${COMMENTS_GOOGLE_SHEET_RANGE:-}" ]]; then
-    IMPORT_COMMENTS_GOOGLE_SHEET_RANGE="$COMMENTS_GOOGLE_SHEET_RANGE"
   fi
   if [[ -z "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" && -n "${COMMENTS_GOOGLE_ACCESS_TOKEN:-}" ]]; then
     IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN="$COMMENTS_GOOGLE_ACCESS_TOKEN"
@@ -584,6 +614,9 @@ load_and_resolve_config() {
   fi
   CFG_USE_SPECIAL_COMMENTS="$(to_bool_flag "USE_SPECIAL_COMMENTS" "${USE_SPECIAL_COMMENTS:-1}")"
   CFG_COMMENT_AVATAR_EMOJIS="${COMMENT_AVATAR_EMOJIS:-}"
+  local lazy_size_raw="${LAZY_LOAD_SIZE_MAX:-15728640}"
+  CFG_LAZY_LOAD_SIZE_MAX_BYTES="$(parse_size_to_bytes "$lazy_size_raw")" || fatal \
+    "LAZY_LOAD_SIZE_MAX must be an integer byte value or unit-suffixed size like 12MB (got: $lazy_size_raw)"
   CFG_THEME_DIR="$SCRIPT_DIR/src/themes/$CFG_THEME_NAME"
   CFG_DEBUG_ITERATIONS="${DEBUG_KDF_ITERATIONS:-10000}"
   CFG_RELEASE_ITERATIONS="${RELEASE_KDF_ITERATIONS:-250000}"
@@ -728,9 +761,11 @@ if objs_dir.exists():
 
 rows = [
     ("encrypted_files", str(len(bundle.get("files", [])))),
+    ("lazy_entries", str(sum(1 for item in bundle.get("files", []) if isinstance(item, dict) and item.get("lazy")))),
     ("object_files", str(objs_count)),
     ("bundle_size", fmt_size(bundle_path.stat().st_size)),
     ("kdf_iterations", str(bundle.get("kdf", {}).get("iterations", ""))),
+    ("lazy_size_max", fmt_size(int(bundle.get("lazy_load", {}).get("max_plaintext_bytes", 0) or 0))),
     ("app_html_path", str(bundle.get("app_html_path", ""))),
 ]
 for key, value in rows:
@@ -839,6 +874,7 @@ run_build() {
   print_kv "metadata_dir" "$CFG_METADATA_DIR"
   print_kv "domain_name" "${CFG_DOMAIN_NAME:-"(none)"}"
   print_kv "special_comments" "$CFG_USE_SPECIAL_COMMENTS"
+  print_kv "lazy_load_size_max" "${CFG_LAZY_LOAD_SIZE_MAX_BYTES}B"
   print_kv "kdf_iterations" "$kdf_iterations"
 
   local special_comment_people_dir="$CFG_ASSETS_DIR/img/people"
@@ -1010,6 +1046,7 @@ PY
       --app-html "$generated_app_html_path" \
       --bundle-out "$bundle_out_path" \
       --objs-dir "$objs_dir" \
+      --lazy-max-bytes "$CFG_LAZY_LOAD_SIZE_MAX_BYTES" \
       --iterations "$kdf_iterations" \
       --no-default-includes \
       --include "$CFG_THEME_DIR" \
@@ -1179,8 +1216,32 @@ run_comments() {
     CFG_METADATA_DIR="$(resolve_from_project "$metadata_dir_override")"
   fi
 
+  local csv_mode=0
+  if [[ -n "${IMPORT_COMMENTS_CSV// }" ]]; then
+    csv_mode=1
+  fi
+
+  if [[ "$csv_mode" == "0" ]]; then
+    [[ -n "${config_path// }" ]] || fatal \
+      "comments command requires --config for Google Sheets source (sheet-id/access-token are read from config)"
+
+    if [[ -n "${IMPORT_COMMENTS_GOOGLE_SHEET_ID// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
+      warn "ignoring CLI --sheet-id/--access-token options; using COMMENTS_GOOGLE_* values from config"
+    fi
+
+    IMPORT_COMMENTS_GOOGLE_SHEET_ID="${COMMENTS_GOOGLE_SHEET_ID:-}"
+    IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN="${COMMENTS_GOOGLE_ACCESS_TOKEN:-}"
+    IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV="${COMMENTS_GOOGLE_ACCESS_TOKEN_ENV:-}"
+
+    [[ -n "${IMPORT_COMMENTS_GOOGLE_SHEET_ID// }" ]] || fatal \
+      "missing COMMENTS_GOOGLE_SHEET_ID in config: $CFG_CONFIG_PATH"
+    if [[ -z "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" && -z "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
+      fatal "missing Google access token config in $CFG_CONFIG_PATH: set COMMENTS_GOOGLE_ACCESS_TOKEN or COMMENTS_GOOGLE_ACCESS_TOKEN_ENV"
+    fi
+  fi
+
   if ! comment_import_requested; then
-    fatal "comments command requires a source: --csv or --sheet-id (or set COMMENTS_* in config)"
+    fatal "comments command requires a source: --csv, or Google Sheets via config (COMMENTS_GOOGLE_*)"
   fi
   validate_comment_import_options
   build_comment_import_cmd

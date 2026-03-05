@@ -9,6 +9,8 @@
   --content-width: 1020px;
   --post-card-ratio: 3 / 4;
   --reel-card-ratio: 9 / 14;
+  --ng-modal-vh: 100vh;
+  --ng-modal-keyboard-inset: 0px;
 }
 
 * {
@@ -554,6 +556,14 @@ body.modal-open {
   display: block;
 }
 
+.modal-media.is-video.is-lazy-pending img {
+  display: block;
+}
+
+.modal-media.is-video.is-lazy-pending video {
+  display: none;
+}
+
 .modal-media.is-sliding > img,
 .modal-media.is-sliding > video {
   opacity: 0;
@@ -648,6 +658,10 @@ body.modal-open {
   display: grid;
 }
 
+.modal-media.is-video.is-lazy-pending .video-mute-btn {
+  display: none;
+}
+
 .thread-nav-btn {
   position: absolute;
   top: 50%;
@@ -718,6 +732,83 @@ body.modal-open {
 
 .thread-dot.active {
   background: #fff;
+}
+
+.modal-lazy-overlay {
+  z-index: 133;
+}
+
+.modal-lazy-dialog {
+  position: relative;
+  width: min(380px, calc(100vw - 28px));
+  padding-top: 18px;
+  overflow: hidden;
+}
+
+.modal-lazy-progress-top {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 3px;
+  background: #e6edf7;
+  overflow: hidden;
+}
+
+.modal-lazy-progress-fill {
+  width: 0;
+  height: 100%;
+  background: linear-gradient(90deg, #4eb0ff, #20d8b8);
+  transition: width 120ms linear;
+}
+
+.modal-lazy-message {
+  margin-top: 2px;
+}
+
+.modal-lazy-terminal {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #f7f9fc;
+  max-height: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(12px);
+  transition:
+    max-height 0.4s ease,
+    opacity 0.24s ease,
+    transform 0.4s ease,
+    padding 0.24s ease,
+    border-color 0.24s ease;
+}
+
+.modal-lazy-terminal.open {
+  max-height: 196px;
+  padding: 10px;
+  opacity: 1;
+  transform: translateY(0);
+  border-color: var(--line);
+}
+
+.modal-lazy-status {
+  margin: 0;
+  max-height: 144px;
+  overflow: auto;
+  border-radius: 8px;
+  border: 1px solid #354763;
+  background: #060b14;
+  color: #f3f6ff;
+  padding: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.modal-lazy-load-btn {
+  margin-top: 0;
 }
 
 .modal-comments-panel {
@@ -1299,7 +1390,8 @@ body.modal-open {
 
   .post-modal-shell {
     width: 100vw;
-    height: 100vh;
+    height: var(--ng-modal-vh, 100vh);
+    min-height: var(--ng-modal-vh, 100vh);
     margin: 0;
     overflow-y: auto;
     overscroll-behavior: contain;
@@ -1311,14 +1403,14 @@ body.modal-open {
     display: flex;
     flex-direction: column;
     width: 100%;
-    min-height: 100vh;
+    min-height: var(--ng-modal-vh, 100vh);
     height: auto;
   }
 
   .modal-media {
     width: 100%;
     min-height: 220px;
-    max-height: calc(100vh - 44px);
+    max-height: calc(var(--ng-modal-vh, 100vh) - 44px);
   }
 
   .modal-comments-panel {
@@ -1326,6 +1418,7 @@ body.modal-open {
     grid-template-rows: 1fr auto auto auto;
     flex: 1 1 auto;
     min-height: 0;
+    padding-bottom: var(--ng-modal-keyboard-inset, 0px);
   }
 
   .modal-close {
@@ -1370,7 +1463,13 @@ body.modal-open {
   }
 
   .modal-comment-form {
-    height: 50px;
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    min-height: 50px;
+    height: auto;
+    background: var(--surface);
+    padding: 0 12px calc(env(safe-area-inset-bottom, 0px) + 8px);
   }
 
   .comment-notice-overlay {
@@ -1422,6 +1521,10 @@ body.modal-open {
   .thread-dots {
     bottom: 10px;
   }
+
+  .modal-lazy-dialog {
+    width: min(360px, calc(100vw - 20px));
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1432,5 +1535,14 @@ body.modal-open {
   .comment-notice-dialog {
     transition: none;
     transform: none;
+  }
+
+  .modal-lazy-terminal {
+    transition: none;
+    transform: none;
+  }
+
+  .modal-lazy-progress-fill {
+    transition: none;
   }
 }

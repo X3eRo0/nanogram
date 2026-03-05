@@ -226,6 +226,7 @@
 
     .terminal {
       width: 100%;
+      position: relative;
       border-radius: 14px;
       border: 1px solid transparent;
       background: linear-gradient(170deg, var(--panel), var(--panel-strong));
@@ -253,6 +254,23 @@
       box-shadow: 0 14px 30px rgba(26, 31, 41, 0.08);
       opacity: 1;
       transform: translateY(0);
+    }
+
+    .terminal-progress-top {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 3px;
+      background: #e6edf7;
+      overflow: hidden;
+    }
+
+    .terminal-progress-fill {
+      width: 0;
+      height: 100%;
+      background: linear-gradient(90deg, #4eb0ff, #20d8b8);
+      transition: width 120ms linear;
     }
 
     .status {
@@ -313,6 +331,12 @@
 
       .status {
         height: 148px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .terminal-progress-fill {
+        transition: none;
       }
     }
   </style>
@@ -403,6 +427,9 @@
       </section>
 
       <section class="terminal" aria-label="Decryption status terminal">
+        <div id="terminalProgressTrack" class="terminal-progress-top" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="terminalProgressFill" class="terminal-progress-fill"></div>
+        </div>
         <pre id="status" class="status"></pre>
         <button id="continueBtn" class="continue-btn" type="button" hidden>Continue</button>
       </section>
@@ -416,17 +443,24 @@
       const FAILED_ATTEMPT_FORM_REF = "cipherkey";
       const FAILED_ATTEMPT_FRAME_NAME = "failed_attempt_iframe";
       const FAILED_ATTEMPT_FORM_ID = "failedAttemptForm";
+      const WINDOW_PASSWORD_HASH_KEY = "__NANOGRAM_PASSWORD_HASH__";
+      const WINDOW_ASSET_RUNTIME_KEY = "__NANOGRAM_ASSET_RUNTIME__";
       const form = document.getElementById("unlockForm");
       const input = document.getElementById("cipherkey");
       const button = document.getElementById("unlockBtn");
       const statusEl = document.getElementById("status");
       const continueBtn = document.getElementById("continueBtn");
+      const terminalProgressTrack = document.getElementById("terminalProgressTrack");
+      const terminalProgressFill = document.getElementById("terminalProgressFill");
       const terminalEl = document.querySelector(".terminal");
       const homeProfileUsernameEl = document.getElementById("homeProfileUsername");
       const gateCopyUsernameEl = document.getElementById("gateCopyUsername");
       const encoder = new TextEncoder();
       const decoder = new TextDecoder();
       const ciphertextPayloadCache = new Map();
+      let activeBundleStorage = null;
+      let eagerCipherIndexByName = null;
+      let eagerCipherIndexLoadPromise = null;
       const statusHistory = [];
       const MAX_STATUS_LINES = 26;
       let readyAppHtml = "";
@@ -486,31 +520,22 @@
         terminalEl.classList.toggle("open", Boolean(isOpen));
       };
 
-      const normalizeDisplayPath = (path) => {
-        const value = String(path || "").trim();
-        if (!value) {
-          return "/unknown";
+      const basenamePosixPath = (value) => {
+        const path = String(value || "").replace(/\\/g, "/");
+        const idx = path.lastIndexOf("/");
+        if (idx < 0) {
+          return path;
         }
-        if (value.startsWith("/")) {
-          return value;
-        }
-        return "/" + value.replace(/^\.?\//, "");
+        return path.slice(idx + 1);
       };
 
-      const truncatePath = (path) => {
-        const value = normalizeDisplayPath(path);
-        const match = value.match(/^(.*\/)([^/]+)\.json$/i);
-        if (match) {
-          const prefix = match[1];
-          const stem = match[2];
-          if (stem.length > 14) {
-            return `${prefix}${stem.slice(0, 7)}..${stem.slice(-4)}.json`;
-          }
+      const entryAssetName = (entry) => {
+        const path = normalizePosixPath(String(entry && entry.path ? entry.path : ""));
+        const base = basenamePosixPath(path);
+        if (base) {
+          return base;
         }
-        if (value.length <= 34) {
-          return value;
-        }
-        return `${value.slice(0, 20)}..${value.slice(-12)}`;
+        return path || "unknown";
       };
 
       const base64ByteLength = (value) => {
@@ -539,6 +564,15 @@
         return `${Math.round(raw)}B`;
       };
 
+      const setTerminalProgress = (percent) => {
+        if (!terminalProgressTrack || !terminalProgressFill) {
+          return;
+        }
+        const clamped = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+        terminalProgressFill.style.width = clamped + "%";
+        terminalProgressTrack.setAttribute("aria-valuenow", String(clamped));
+      };
+
       const markReadyState = (isReady) => {
         if (!continueBtn) {
           return;
@@ -549,6 +583,7 @@
 
       if (!window.crypto || !window.crypto.subtle) {
         setTerminalOpen(true);
+        setTerminalProgress(0);
         resetLog("[-] This browser does not support Web Crypto.");
         return;
       }
@@ -687,10 +722,10 @@
         }
       };
 
-      const deriveKey = async (password, kdf) => {
+      const deriveKey = async (keyMaterialInput, kdf) => {
         const keyMaterial = await crypto.subtle.importKey(
           "raw",
-          encoder.encode(password),
+          encoder.encode(keyMaterialInput),
           { name: "PBKDF2" },
           false,
           ["deriveKey"]
@@ -710,20 +745,167 @@
         );
       };
 
-      const fetchCiphertextPayload = async (entry) => {
-        const ciphertextJsonPath = String(entry && entry.ciphertext_json ? entry.ciphertext_json : "").trim();
-        if (!ciphertextJsonPath) {
-          throw new Error("Encrypted entry is missing ciphertext_json path.");
+      const fetchJsonWithProgress = async (jsonPath, onProgress, notFoundMessage) => {
+        const response = await fetch(jsonPath, { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error(notFoundMessage || `JSON was not found: ${jsonPath}`);
         }
-        if (ciphertextPayloadCache.has(ciphertextJsonPath)) {
-          return ciphertextPayloadCache.get(ciphertextJsonPath);
+        const headerLength = Number(response.headers.get("content-length"));
+        const totalBytes = Number.isFinite(headerLength) && headerLength > 0 ? headerLength : 0;
+        if (onProgress) {
+          onProgress({ stage: "fetching", loaded: 0, total: totalBytes, percent: 2 });
         }
 
-        const response = await fetch(ciphertextJsonPath, { cache: "no-store" });
-        if (!response.ok) {
-          throw new Error(`Encrypted payload was not found: ${ciphertextJsonPath}`);
+        let payload = null;
+        if (onProgress && response.body && typeof response.body.getReader === "function") {
+          const reader = response.body.getReader();
+          const chunks = [];
+          let loaded = 0;
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+              break;
+            }
+            if (value) {
+              chunks.push(value);
+              loaded += value.byteLength;
+              const percent = totalBytes > 0
+                ? Math.max(2, Math.min(88, Math.round((loaded / totalBytes) * 88)))
+                : Math.max(2, Math.min(88, 2 + Math.round(chunks.length / 2)));
+              onProgress({ stage: "fetching", loaded, total: totalBytes, percent });
+            }
+          }
+          const merged = new Uint8Array(loaded);
+          let cursor = 0;
+          for (const chunk of chunks) {
+            merged.set(chunk, cursor);
+            cursor += chunk.byteLength;
+          }
+          payload = JSON.parse(decoder.decode(merged));
+        } else {
+          payload = await response.json();
         }
-        const payload = await response.json();
+        return payload;
+      };
+
+      const loadEagerCipherIndex = async (options = {}) => {
+        const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+        const eagerPath = activeBundleStorage && typeof activeBundleStorage.eager_ciphertexts_json === "string"
+          ? activeBundleStorage.eager_ciphertexts_json.trim()
+          : "";
+        if (!eagerPath) {
+          return new Map();
+        }
+        if (eagerCipherIndexByName instanceof Map) {
+          return eagerCipherIndexByName;
+        }
+        if (eagerCipherIndexLoadPromise) {
+          return eagerCipherIndexLoadPromise;
+        }
+
+        eagerCipherIndexLoadPromise = (async () => {
+          const payload = await fetchJsonWithProgress(
+            eagerPath,
+            onProgress,
+            `Encrypted eager payload blob was not found: ${eagerPath}`
+          );
+          const items = Array.isArray(payload)
+            ? payload
+            : (payload && Array.isArray(payload.files) ? payload.files : []);
+          const index = new Map();
+          for (const item of items) {
+            if (!item || typeof item !== "object") {
+              continue;
+            }
+            const name = String(item.name || "").trim();
+            const cipher = typeof item.cipher === "string"
+              ? item.cipher
+              : (typeof item.ciphertext_b64 === "string" ? item.ciphertext_b64 : "");
+            if (!name || !cipher) {
+              continue;
+            }
+            index.set(name, cipher);
+          }
+          eagerCipherIndexByName = index;
+          return index;
+        })();
+
+        try {
+          return await eagerCipherIndexLoadPromise;
+        } finally {
+          if (!(eagerCipherIndexByName instanceof Map)) {
+            eagerCipherIndexLoadPromise = null;
+          }
+        }
+      };
+
+      const fetchCiphertextPayload = async (entry, options = {}) => {
+        const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+        const ciphertextName = String(entry && entry.ciphertext_name ? entry.ciphertext_name : "").trim();
+        if (ciphertextName) {
+          const cacheKey = `name:${ciphertextName}`;
+          if (ciphertextPayloadCache.has(cacheKey)) {
+            const cached = ciphertextPayloadCache.get(cacheKey);
+            if (onProgress) {
+              onProgress({
+                stage: "cached",
+                loaded: cached.byteLength,
+                total: cached.byteLength,
+                percent: 100
+              });
+            }
+            return cached;
+          }
+
+          const eagerIndex = await loadEagerCipherIndex({ onProgress });
+          const ciphertextB64 = eagerIndex.get(ciphertextName) || "";
+          if (!ciphertextB64) {
+            throw new Error(`Encrypted eager payload item is missing: ${ciphertextName}`);
+          }
+          const sourcePrefix =
+            activeBundleStorage && typeof activeBundleStorage.eager_ciphertexts_json === "string"
+              ? activeBundleStorage.eager_ciphertexts_json
+              : "eager-ciphers.json";
+          const loadedPayload = {
+            ciphertextB64,
+            byteLength: base64ByteLength(ciphertextB64),
+            sourcePath: `${sourcePrefix}#${ciphertextName}`
+          };
+          ciphertextPayloadCache.set(cacheKey, loadedPayload);
+          if (onProgress) {
+            onProgress({
+              stage: "fetched",
+              loaded: loadedPayload.byteLength,
+              total: loadedPayload.byteLength,
+              percent: 92
+            });
+          }
+          return loadedPayload;
+        }
+
+        const ciphertextJsonPath = String(entry && entry.ciphertext_json ? entry.ciphertext_json : "").trim();
+        if (!ciphertextJsonPath) {
+          throw new Error("Encrypted entry is missing ciphertext_json path or ciphertext_name.");
+        }
+        if (ciphertextPayloadCache.has(ciphertextJsonPath)) {
+          const cached = ciphertextPayloadCache.get(ciphertextJsonPath);
+          if (onProgress) {
+            onProgress({
+              stage: "cached",
+              loaded: cached.byteLength,
+              total: cached.byteLength,
+              percent: 100
+            });
+          }
+          return cached;
+        }
+
+        const payload = await fetchJsonWithProgress(
+          ciphertextJsonPath,
+          onProgress,
+          `Encrypted payload was not found: ${ciphertextJsonPath}`
+        );
+
         const ciphertextB64 = payload && typeof payload.ciphertext_b64 === "string"
           ? payload.ciphertext_b64
           : "";
@@ -736,10 +918,27 @@
           sourcePath: ciphertextJsonPath
         };
         ciphertextPayloadCache.set(ciphertextJsonPath, loadedPayload);
+        if (onProgress) {
+          onProgress({
+            stage: "fetched",
+            loaded: loadedPayload.byteLength,
+            total: loadedPayload.byteLength,
+            percent: 92
+          });
+        }
         return loadedPayload;
       };
 
-      const decryptEntryFromPayload = async (key, entry, payload) => {
+      const decryptEntryFromPayload = async (key, entry, payload, options = {}) => {
+        const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+        if (onProgress) {
+          onProgress({
+            stage: "decrypting",
+            loaded: payload && Number.isFinite(payload.byteLength) ? payload.byteLength : 0,
+            total: payload && Number.isFinite(payload.byteLength) ? payload.byteLength : 0,
+            percent: 96
+          });
+        }
         const plaintext = await crypto.subtle.decrypt(
           {
             name: "AES-GCM",
@@ -748,7 +947,16 @@
           key,
           base64ToBytes(payload.ciphertextB64)
         );
-        return new Uint8Array(plaintext);
+        const bytes = new Uint8Array(plaintext);
+        if (onProgress) {
+          onProgress({
+            stage: "ready",
+            loaded: bytes.byteLength,
+            total: bytes.byteLength,
+            percent: 100
+          });
+        }
+        return bytes;
       };
 
       const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -810,7 +1018,154 @@
         return out;
       };
 
+      const buildEntryAliases = (entryPath, appDir) => {
+        const aliases = new Set();
+        const normalizedEntryPath = normalizePosixPath(entryPath);
+        if (!normalizedEntryPath) {
+          return aliases;
+        }
+        aliases.add(normalizedEntryPath);
+
+        const pathFromApp = relativePosixPath(appDir, normalizedEntryPath);
+        if (pathFromApp && pathFromApp !== "." && pathFromApp !== normalizedEntryPath) {
+          aliases.add(pathFromApp);
+          aliases.add(`./${pathFromApp}`);
+        }
+
+        const rootRelativePath = stripLeadingKnownRoot(normalizedEntryPath);
+        if (rootRelativePath) {
+          aliases.add(rootRelativePath);
+          aliases.add(`./${rootRelativePath}`);
+          aliases.add(`src/${rootRelativePath}`);
+          aliases.add(`./src/${rootRelativePath}`);
+        }
+        return aliases;
+      };
+
+      const createAssetRuntime = ({
+        bundle,
+        appDir,
+        key,
+        passwordHash,
+        entriesByPath,
+        aliasToCanonical,
+        blobUrlByCanonical
+      }) => {
+        const inflightLoads = new Map();
+        const normalizeInputPath = (rawPath) => normalizePosixPath(String(rawPath || ""));
+
+        const resolveCanonicalPath = (rawPath) => {
+          const normalized = normalizeInputPath(rawPath);
+          if (!normalized) {
+            return "";
+          }
+          if (entriesByPath.has(normalized)) {
+            return normalized;
+          }
+          if (aliasToCanonical.has(normalized)) {
+            return aliasToCanonical.get(normalized);
+          }
+          const stripped = stripLeadingKnownRoot(normalized);
+          if (stripped && aliasToCanonical.has(stripped)) {
+            return aliasToCanonical.get(stripped);
+          }
+          return normalized;
+        };
+
+        const load = async (rawPath, options = {}) => {
+          const canonicalPath = resolveCanonicalPath(rawPath);
+          const entry = entriesByPath.get(canonicalPath);
+          if (!entry) {
+            throw new Error(`Encrypted entry not found for path: ${rawPath}`);
+          }
+          if (blobUrlByCanonical.has(canonicalPath)) {
+            return blobUrlByCanonical.get(canonicalPath);
+          }
+          if (inflightLoads.has(canonicalPath)) {
+            return inflightLoads.get(canonicalPath);
+          }
+
+          const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
+          const task = (async () => {
+            const payload = await fetchCiphertextPayload(entry, {
+              onProgress: (state) => {
+                if (!onProgress) {
+                  return;
+                }
+                onProgress({
+                  ...state,
+                  path: canonicalPath,
+                  lazy: Boolean(entry.lazy),
+                  plainBytes: Number(entry.plain_bytes) || 0
+                });
+              }
+            });
+            const bytes = await decryptEntryFromPayload(key, entry, payload, {
+              onProgress: (state) => {
+                if (!onProgress) {
+                  return;
+                }
+                onProgress({
+                  ...state,
+                  path: canonicalPath,
+                  lazy: Boolean(entry.lazy),
+                  plainBytes: Number(entry.plain_bytes) || 0
+                });
+              }
+            });
+            const blob = new Blob([bytes], { type: entry.mime || "application/octet-stream" });
+            const blobUrl = URL.createObjectURL(blob);
+            blobUrlByCanonical.set(canonicalPath, blobUrl);
+            return blobUrl;
+          })();
+
+          inflightLoads.set(canonicalPath, task);
+          try {
+            return await task;
+          } finally {
+            inflightLoads.delete(canonicalPath);
+          }
+        };
+
+        const getEntryInfo = (rawPath) => {
+          const canonicalPath = resolveCanonicalPath(rawPath);
+          const entry = entriesByPath.get(canonicalPath);
+          if (!entry) {
+            return null;
+          }
+          return {
+            path: canonicalPath,
+            mime: String(entry.mime || "application/octet-stream"),
+            lazy: Boolean(entry.lazy),
+            plainBytes: Number(entry.plain_bytes) || 0,
+            ciphertextPath: String(entry.ciphertext_json || "")
+          };
+        };
+
+        const lazyEntries = Array.from(entriesByPath.values()).filter((entry) => Boolean(entry.lazy));
+        return {
+          version: 1,
+          appDir,
+          bundlePath: BUNDLE_PATH,
+          lazyMaxBytes: Number(bundle && bundle.lazy_load && bundle.lazy_load.max_plaintext_bytes) || 0,
+          passwordHash,
+          resolvePath: resolveCanonicalPath,
+          getEntryInfo,
+          isLazyPath: (rawPath) => {
+            const info = getEntryInfo(rawPath);
+            return Boolean(info && info.lazy);
+          },
+          getBlobUrl: (rawPath) => {
+            const canonicalPath = resolveCanonicalPath(rawPath);
+            return blobUrlByCanonical.get(canonicalPath) || "";
+          },
+          load,
+          lazyEntriesCount: lazyEntries.length
+        };
+      };
+
       const unlock = async (password) => {
+        setTerminalProgress(4);
         appendLog("[+] Loading encrypted bundle...");
         const response = await fetch(BUNDLE_PATH, { cache: "no-store" });
         if (!response.ok) {
@@ -820,66 +1175,108 @@
         if (!bundle || !Array.isArray(bundle.files) || !bundle.kdf) {
           throw new Error("Encrypted bundle format is invalid.");
         }
+        setTerminalProgress(14);
+        activeBundleStorage = bundle && typeof bundle.storage === "object" ? bundle.storage : {};
+        eagerCipherIndexByName = null;
+        eagerCipherIndexLoadPromise = null;
+        ciphertextPayloadCache.clear();
 
         appendLog("[+] Verifying password...");
+        setTerminalProgress(20);
         const enteredHash = await sha256Hex(password);
         void reportAttempt(password);
         if (enteredHash !== bundle.password_hash_sha256) {
           throw new Error("Wrong password.");
         }
 
+        window[WINDOW_PASSWORD_HASH_KEY] = enteredHash;
         appendLog("[+] Password accepted.");
+        setTerminalProgress(26);
         appendLog("[+] Deriving decryption key...");
-        const key = await deriveKey(password, bundle.kdf);
+        const keyInputMode = String(bundle.kdf.password_input || "").trim().toLowerCase();
+        const keyMaterialInput = keyInputMode === "sha256_hex" ? enteredHash : password;
+        const key = await deriveKey(keyMaterialInput, bundle.kdf);
+        setTerminalProgress(36);
 
         const appPath = normalizePosixPath(String(bundle.app_html_path || "src/nanogram.app.html"));
         const appDir = dirnamePosixPath(appPath);
-        const entries = new Map(
-          bundle.files.map((entry) => [normalizePosixPath(String(entry.path)), entry])
-        );
-        const appEntry = entries.get(appPath);
+        const entriesByPath = new Map();
+        const aliasToCanonical = new Map();
+        for (const rawEntry of bundle.files) {
+          if (!rawEntry || typeof rawEntry !== "object") {
+            continue;
+          }
+          const entryPath = normalizePosixPath(String(rawEntry.path));
+          if (!entryPath) {
+            continue;
+          }
+          const entry = {
+            ...rawEntry,
+            path: entryPath,
+            lazy: Boolean(rawEntry.lazy),
+            plain_bytes: Number(rawEntry.plain_bytes) || 0
+          };
+          entriesByPath.set(entryPath, entry);
+          const aliases = buildEntryAliases(entryPath, appDir);
+          aliases.forEach((alias) => {
+            if (alias && !aliasToCanonical.has(alias)) {
+              aliasToCanonical.set(alias, entryPath);
+            }
+          });
+        }
+
+        const appEntry = entriesByPath.get(appPath);
         if (!appEntry) {
           throw new Error("App HTML entry is missing from encrypted bundle.");
         }
 
         const replacements = new Map();
+        const blobUrlByCanonical = new Map();
         let appHtml = "";
         let totalFetchedBytes = 0;
-        const plan = [appEntry, ...Array.from(entries.values()).filter((entry) => entry !== appEntry)];
+        const allEntries = Array.from(entriesByPath.values());
+        const otherEntries = allEntries.filter((entry) => entry !== appEntry);
+        const lazyEntries = otherEntries.filter((entry) => Boolean(entry.lazy));
+        const eagerEntries = [appEntry, ...otherEntries.filter((entry) => !entry.lazy)];
 
-        for (const entry of plan) {
+        const lazyMaxBytes = Number(bundle && bundle.lazy_load && bundle.lazy_load.max_plaintext_bytes) || 0;
+        if (lazyEntries.length > 0 && lazyMaxBytes > 0) {
+          appendLog(
+            `[+] Lazy loading enabled for ${lazyEntries.length} asset(s) over ${formatSize(lazyMaxBytes)}.`
+          );
+        }
+
+        if (eagerEntries.length === 0) {
+          setTerminalProgress(92);
+        }
+
+        for (let entryIndex = 0; entryIndex < eagerEntries.length; entryIndex += 1) {
+          const entry = eagerEntries[entryIndex];
           const entryPath = normalizePosixPath(String(entry.path));
-          const displayPath = truncatePath(entry && entry.ciphertext_json);
+          const assetName = entryAssetName(entry);
           let payload = null;
           try {
             payload = await fetchCiphertextPayload(entry);
             totalFetchedBytes += payload.byteLength;
             const bytes = await decryptEntryFromPayload(key, entry, payload);
-            appendLog(`[+] Decrypting ${displayPath} ${formatSize(payload.byteLength)} OK`);
+            appendLog(`[+] Decrypting ${assetName} ${formatSize(payload.byteLength)} OK`);
+            const decryptPercent = 36 + ((entryIndex + 1) / eagerEntries.length) * 56;
+            setTerminalProgress(decryptPercent);
             if (entryPath === appPath) {
               appHtml = decoder.decode(bytes);
             } else {
               const blob = new Blob([bytes], { type: entry.mime || "application/octet-stream" });
               const blobUrl = URL.createObjectURL(blob);
-              replacements.set(entryPath, blobUrl);
-              const pathFromApp = relativePosixPath(appDir, entryPath);
-              if (pathFromApp && pathFromApp !== "." && pathFromApp !== entryPath) {
-                replacements.set(pathFromApp, blobUrl);
-                replacements.set(`./${pathFromApp}`, blobUrl);
-              }
-              const rootRelativePath = stripLeadingKnownRoot(entryPath);
-              if (rootRelativePath) {
-                replacements.set(rootRelativePath, blobUrl);
-                replacements.set(`./${rootRelativePath}`, blobUrl);
-                replacements.set(`src/${rootRelativePath}`, blobUrl);
-                replacements.set(`./src/${rootRelativePath}`, blobUrl);
-              }
+              blobUrlByCanonical.set(entryPath, blobUrl);
+              buildEntryAliases(entryPath, appDir).forEach((alias) => {
+                replacements.set(alias, blobUrl);
+              });
             }
           } catch (error) {
             const sizeLabel = payload && Number.isFinite(payload.byteLength)
               ? ` ${formatSize(payload.byteLength)}`
               : "";
-            appendLog(`[+] Decrypting ${displayPath}${sizeLabel} FAIL`);
+            appendLog(`[+] Decrypting ${assetName}${sizeLabel} FAIL`);
             throw error;
           }
         }
@@ -888,8 +1285,20 @@
           throw new Error("App HTML could not be decrypted.");
         }
 
-        appendLog("[+] All assets decrypted!");
+        window[WINDOW_ASSET_RUNTIME_KEY] = createAssetRuntime({
+          bundle,
+          appDir,
+          key,
+          passwordHash: enteredHash,
+          entriesByPath,
+          aliasToCanonical,
+          blobUrlByCanonical
+        });
+
+        appendLog(`[+] Eager assets decrypted: ${Math.max(0, eagerEntries.length - 1)}`);
+        appendLog(`[+] Lazy assets pending: ${lazyEntries.length}`);
         appendLog(`[+] Total data fetched ${formatSize(totalFetchedBytes)}`);
+        setTerminalProgress(100);
         return {
           appHtml: rewriteAssetPaths(appHtml, replacements)
         };
@@ -917,7 +1326,14 @@
         }
 
         setTerminalOpen(true);
+        setTerminalProgress(0);
         readyAppHtml = "";
+        activeBundleStorage = null;
+        eagerCipherIndexByName = null;
+        eagerCipherIndexLoadPromise = null;
+        ciphertextPayloadCache.clear();
+        window[WINDOW_ASSET_RUNTIME_KEY] = null;
+        window[WINDOW_PASSWORD_HASH_KEY] = "";
         markReadyState(false);
         resetLog("[+] Starting unlock...");
         button.disabled = true;
@@ -931,6 +1347,7 @@
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           appendLog(`[-] ${message}`);
+          window[WINDOW_ASSET_RUNTIME_KEY] = null;
           button.disabled = false;
           input.disabled = false;
           markReadyState(false);

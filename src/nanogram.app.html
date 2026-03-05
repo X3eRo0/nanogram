@@ -104,6 +104,19 @@
           </button>
 
           <div class="thread-dots" id="threadDots" aria-label="Media items"></div>
+
+          <div id="modalLazyOverlay" class="comment-notice-overlay modal-lazy-overlay" aria-hidden="true" hidden>
+            <div id="modalLazyDialog" class="comment-notice-dialog modal-lazy-dialog" role="dialog" aria-modal="true" aria-labelledby="modalLazyMessage">
+              <div class="modal-lazy-progress-top" id="modalLazyProgressTrack" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="modal-lazy-progress-fill" id="modalLazyProgressFill"></div>
+              </div>
+              <p id="modalLazyMessage" class="comment-notice-text modal-lazy-message">Tap to load media</p>
+              <section id="modalLazyTerminal" class="modal-lazy-terminal" aria-label="Media loading terminal">
+                <pre id="modalLazyStatus" class="modal-lazy-status"></pre>
+              </section>
+              <button type="button" class="comment-notice-ok modal-lazy-load-btn" id="modalLazyLoadButton">Load now</button>
+            </div>
+          </div>
         </div>
 
         <aside class="modal-comments-panel" aria-label="Comments">
@@ -241,9 +254,25 @@
       const commentAvatarPickerEl = document.getElementById("commentAvatarPicker");
       const commentIdentityCancelBtn = document.getElementById("commentIdentityCancel");
       const commentIdentityContinueBtn = document.getElementById("commentIdentityContinue");
+      const modalLazyOverlay = document.getElementById("modalLazyOverlay");
+      const modalLazyMessage = document.getElementById("modalLazyMessage");
+      const modalLazyProgressTrack = document.getElementById("modalLazyProgressTrack");
+      const modalLazyProgressFill = document.getElementById("modalLazyProgressFill");
+      const modalLazyTerminal = document.getElementById("modalLazyTerminal");
+      const modalLazyStatus = document.getElementById("modalLazyStatus");
+      const modalLazyLoadButton = document.getElementById("modalLazyLoadButton");
       let commentNoticeHideTimer = 0;
       let commentNoticeLastFocused = null;
       let selectedIdentityAvatar = "";
+
+      const WINDOW_ASSET_RUNTIME_KEY = "__NANOGRAM_ASSET_RUNTIME__";
+      const WINDOW_PASSWORD_HASH_KEY = "__NANOGRAM_PASSWORD_HASH__";
+      const assetRuntime = window[WINDOW_ASSET_RUNTIME_KEY] && typeof window[WINDOW_ASSET_RUNTIME_KEY] === "object"
+        ? window[WINDOW_ASSET_RUNTIME_KEY]
+        : null;
+      const sessionPasswordHash = typeof window[WINDOW_PASSWORD_HASH_KEY] === "string"
+        ? window[WINDOW_PASSWORD_HASH_KEY]
+        : "";
 
       const DEFAULT_COMMENT_AVATAR_EMOJIS = [
         "👶", "🧒", "👦", "👧", "🧑", "👱", "👨", "🧔", "🧔‍♂️", "🧔‍♀️",
@@ -329,6 +358,74 @@
           : "assets/img/profile.jpg"
       };
 
+      const formatBytes = (value) => {
+        const size = Number(value);
+        if (!Number.isFinite(size) || size <= 0) {
+          return "0B";
+        }
+        if (size >= 1024 * 1024 * 1024) {
+          return (size / (1024 * 1024 * 1024)).toFixed(1) + "GB";
+        }
+        if (size >= 1024 * 1024) {
+          return Math.round(size / (1024 * 1024)) + "MB";
+        }
+        if (size >= 1024) {
+          return Math.round(size / 1024) + "KB";
+        }
+        return Math.round(size) + "B";
+      };
+
+      const lazyLoadMaxBytes = assetRuntime && Number.isFinite(Number(assetRuntime.lazyMaxBytes))
+        ? Number(assetRuntime.lazyMaxBytes)
+        : 0;
+      const getAssetEntryInfo = (pathValue) => {
+        if (!assetRuntime || typeof assetRuntime.getEntryInfo !== "function") {
+          return null;
+        }
+        try {
+          return assetRuntime.getEntryInfo(pathValue);
+        } catch (_error) {
+          return null;
+        }
+      };
+      const getAssetBlobUrl = (pathValue) => {
+        if (!assetRuntime || typeof assetRuntime.getBlobUrl !== "function") {
+          return "";
+        }
+        try {
+          return String(assetRuntime.getBlobUrl(pathValue) || "");
+        } catch (_error) {
+          return "";
+        }
+      };
+      const resolveAssetReference = (pathValue) => {
+        const text = String(pathValue || "").trim();
+        if (!text) {
+          return {
+            src: "",
+            encryptedPath: "",
+            lazy: false,
+            plainBytes: 0
+          };
+        }
+        const info = getAssetEntryInfo(text);
+        const loadedBlobUrl = getAssetBlobUrl(text);
+        if (!info) {
+          return {
+            src: loadedBlobUrl || text,
+            encryptedPath: "",
+            lazy: false,
+            plainBytes: 0
+          };
+        }
+        return {
+          src: loadedBlobUrl || text,
+          encryptedPath: String(info.path || text),
+          lazy: Boolean(info.lazy) && !loadedBlobUrl,
+          plainBytes: Number(info.plainBytes) || 0
+        };
+      };
+
       const normalizeComment = (rawComment) => {
         const comment = rawComment && typeof rawComment === "object" ? rawComment : {};
         return {
@@ -346,20 +443,45 @@
         const item = rawItem && typeof rawItem === "object" ? rawItem : {};
         const fallbackType = fallback.type === "video" ? "video" : "image";
         const mediaType = item.type === "video" ? "video" : item.type === "image" ? "image" : fallbackType;
-        const src = typeof item.src === "string" && item.src.trim() ? item.src.trim() : fallback.src;
-        const thumbnail = typeof item.thumbnail === "string" && item.thumbnail.trim()
+        const rawSrc = typeof item.src === "string" && item.src.trim() ? item.src.trim() : fallback.src;
+        const rawThumbnail = typeof item.thumbnail === "string" && item.thumbnail.trim()
           ? item.thumbnail.trim()
-          : (mediaType === "video" ? src : src);
-        const poster = typeof item.poster === "string" && item.poster.trim()
+          : rawSrc;
+        const rawPoster = typeof item.poster === "string" && item.poster.trim()
           ? item.poster.trim()
-          : (mediaType === "video" ? "" : src);
+          : (mediaType === "video" ? rawThumbnail : rawSrc);
+        const sourceRef = resolveAssetReference(rawSrc);
+        const thumbnailRef = resolveAssetReference(rawThumbnail);
+        const posterRef = resolveAssetReference(rawPoster);
         const ratioRaw = Number(item.ratio);
         const ratio = Number.isFinite(ratioRaw) && ratioRaw > 0 ? ratioRaw : (mediaType === "video" ? 9 / 16 : 1);
+        const fallbackPreview = "assets/img/post.jpg";
+        const pickRenderableSrc = (...refs) => {
+          for (const ref of refs) {
+            if (ref && ref.src && !ref.lazy) {
+              return ref.src;
+            }
+          }
+          return "";
+        };
+        const renderableThumbnail = pickRenderableSrc(thumbnailRef, posterRef);
+        const renderablePoster = pickRenderableSrc(posterRef, thumbnailRef);
+        const previewRef = mediaType === "video"
+          ? (renderableThumbnail || renderablePoster || fallbackPreview)
+          : (sourceRef.lazy ? (renderableThumbnail || renderablePoster || fallbackPreview) : sourceRef.src);
+
         return {
           type: mediaType,
-          src,
-          thumbnail,
-          poster,
+          src: sourceRef.src,
+          sourcePath: sourceRef.encryptedPath || rawSrc,
+          lazySrc: sourceRef.lazy,
+          lazyBytes: sourceRef.plainBytes,
+          thumbnail: renderableThumbnail || (sourceRef.lazy ? "" : sourceRef.src) || fallbackPreview,
+          thumbnailPath: thumbnailRef.encryptedPath || rawThumbnail,
+          poster: renderablePoster || renderableThumbnail || (sourceRef.lazy ? "" : sourceRef.src) || fallbackPreview,
+          posterPath: posterRef.encryptedPath || rawPoster,
+          previewSrc: previewRef,
+          loadedSrc: !sourceRef.lazy && sourceRef.src ? sourceRef.src : "",
           alt: typeof item.alt === "string" && item.alt.trim() ? item.alt.trim() : fallback.alt,
           ratio
         };
@@ -560,6 +682,10 @@
           avatarVar,
           type: primary.type,
           src: primary.src,
+          sourcePath: primary.sourcePath,
+          lazySrc: primary.lazySrc,
+          lazyBytes: primary.lazyBytes,
+          previewSrc: primary.previewSrc,
           thumbnail: primary.thumbnail,
           poster: primary.poster,
           alt: primary.alt,
@@ -787,9 +913,15 @@
           const isReelFeed = feedName === "reels";
           const isThread = post.isThread === true;
           const isReelPost = post.isReel === true;
+          const primaryMedia = Array.isArray(post.mediaItems) && post.mediaItems.length
+            ? post.mediaItems[0]
+            : null;
+          const primaryMediaLazy = Boolean(primaryMedia && primaryMedia.lazySrc);
+          const primaryVideoLazy = Boolean(primaryMedia && primaryMedia.type === "video" && primaryMedia.lazySrc);
           card.className =
             "post-card" +
             (post.type === "video" ? " is-video" : "") +
+            (primaryMediaLazy ? " is-lazy-media" : "") +
             (isThread ? " is-thread" : "") +
             (isReelPost ? " is-reel" : "") +
             (isReelFeed ? " reel-card" : "");
@@ -799,7 +931,7 @@
           card.tabIndex = 0;
           card.setAttribute("aria-label", isReelPost ? "Open reel" : post.type === "video" ? "Open video post" : "Open post");
 
-          if (post.type === "video" && !isReelPost) {
+          if (post.type === "video" && !isReelPost && !primaryVideoLazy) {
             const previewVideo = document.createElement("video");
             previewVideo.className = "post-card-video";
             previewVideo.src = post.src;
@@ -817,9 +949,9 @@
             previewVideo.setAttribute("tabindex", "-1");
             card.appendChild(previewVideo);
           } else {
-            const thumbnailSrc = post.thumbnail || post.poster || post.src;
+            const thumbnailSrc = post.previewSrc || post.thumbnail || post.poster || "assets/img/post.jpg";
             const isVideoPath = /\.(mp4|mov|m4v|webm)(?:[?#].*)?$/i.test(String(thumbnailSrc || ""));
-            if (isReelPost && post.type === "video" && isVideoPath) {
+            if (isReelPost && post.type === "video" && isVideoPath && !primaryVideoLazy) {
               const stillVideo = document.createElement("video");
               stillVideo.className = "post-card-video";
               stillVideo.src = post.src;
@@ -835,10 +967,10 @@
               stillVideo.setAttribute("tabindex", "-1");
               card.appendChild(stillVideo);
             } else {
-            const image = document.createElement("img");
-            image.src = thumbnailSrc;
-            image.alt = post.alt;
-            card.appendChild(image);
+              const image = document.createElement("img");
+              image.src = thumbnailSrc;
+              image.alt = post.alt;
+              card.appendChild(image);
             }
           }
 
@@ -1179,12 +1311,44 @@
         }
       };
 
+      const readMobileViewportMetrics = () => {
+        let viewportWidth = window.innerWidth;
+        let viewportHeight = window.innerHeight;
+        let keyboardInset = 0;
+        if (window.visualViewport) {
+          const vv = window.visualViewport;
+          if (Number.isFinite(vv.width) && vv.width > 0) {
+            viewportWidth = Math.round(vv.width);
+          }
+          if (Number.isFinite(vv.height) && vv.height > 0) {
+            viewportHeight = Math.round(vv.height);
+          }
+          const hiddenBottom = window.innerHeight - (vv.height + vv.offsetTop);
+          if (Number.isFinite(hiddenBottom) && hiddenBottom > 0) {
+            keyboardInset = Math.round(hiddenBottom);
+          }
+        }
+        return {
+          viewportWidth: Math.max(1, viewportWidth),
+          viewportHeight: Math.max(1, viewportHeight),
+          keyboardInset: Math.max(0, keyboardInset)
+        };
+      };
+
+      const applyMobileViewportVars = (metrics) => {
+        const data = metrics || readMobileViewportMetrics();
+        document.documentElement.style.setProperty("--ng-modal-vh", data.viewportHeight + "px");
+        document.documentElement.style.setProperty("--ng-modal-keyboard-inset", data.keyboardInset + "px");
+      };
+
       const applyModalSizing = () => {
         if (!modal.classList.contains("open")) {
           return;
         }
 
         if (window.innerWidth <= 900) {
+          const viewportMetrics = readMobileViewportMetrics();
+          applyMobileViewportVars(viewportMetrics);
           modalShell.style.removeProperty("width");
           modalShell.style.removeProperty("height");
           modalShell.style.removeProperty("margin-top");
@@ -1196,8 +1360,8 @@
           const mobileRatio = activeMedia && Number.isFinite(activeMedia.ratio) && activeMedia.ratio > 0
             ? activeMedia.ratio
             : (activePost && Number.isFinite(activePost.ratio) && activePost.ratio > 0 ? activePost.ratio : 9 / 16);
-          const viewportWidth = window.innerWidth;
-          const viewportHeight = window.innerHeight;
+          const viewportWidth = viewportMetrics.viewportWidth;
+          const viewportHeight = viewportMetrics.viewportHeight;
           const maxMediaHeight = Math.max(220, viewportHeight - 44);
           const mediaHeight = Math.min(maxMediaHeight, viewportWidth / mobileRatio);
           modalMedia.style.height = Math.round(mediaHeight) + "px";
@@ -1208,6 +1372,11 @@
           return;
         }
 
+        applyMobileViewportVars({
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          keyboardInset: 0
+        });
         modalMedia.style.removeProperty("height");
         if (modalCommentsPanel) {
           modalCommentsPanel.style.removeProperty("min-height");
@@ -1243,8 +1412,294 @@
         modalDialog.style.gridTemplateColumns = mediaWidth + "px " + commentWidth + "px";
       };
 
+      const isLazyPendingMedia = (mediaItem) => Boolean(mediaItem && mediaItem.lazySrc && mediaItem.sourcePath);
+      let lazyLoadInFlight = 0;
+      let modalLazyHideTimer = 0;
+      const lazyStatusHistory = [];
+      const MAX_LAZY_STATUS_LINES = 8;
+
+      const appendLazyStatusLine = (line) => {
+        if (!modalLazyStatus) {
+          return;
+        }
+        const text = String(line || "").trim();
+        if (!text) {
+          return;
+        }
+        if (lazyStatusHistory[lazyStatusHistory.length - 1] === text) {
+          return;
+        }
+        lazyStatusHistory.push(text);
+        if (lazyStatusHistory.length > MAX_LAZY_STATUS_LINES) {
+          lazyStatusHistory.splice(0, lazyStatusHistory.length - MAX_LAZY_STATUS_LINES);
+        }
+        modalLazyStatus.textContent = lazyStatusHistory.join("\n");
+        modalLazyStatus.scrollTop = modalLazyStatus.scrollHeight;
+      };
+
+      const resetLazyStatus = (line) => {
+        lazyStatusHistory.length = 0;
+        if (modalLazyStatus) {
+          modalLazyStatus.textContent = "";
+        }
+        if (line) {
+          appendLazyStatusLine(line);
+        }
+      };
+
+      const setLazyTerminalOpen = (isOpen) => {
+        if (!modalLazyTerminal) {
+          return;
+        }
+        modalLazyTerminal.classList.toggle("open", Boolean(isOpen));
+      };
+
+      const setLazyProgress = (percent) => {
+        if (!modalLazyProgressFill || !modalLazyProgressTrack) {
+          return;
+        }
+        const clamped = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)));
+        modalLazyProgressFill.style.width = clamped + "%";
+        modalLazyProgressTrack.setAttribute("aria-valuenow", String(clamped));
+      };
+
+      const showLazyOverlay = () => {
+        if (!modalLazyOverlay) {
+          return;
+        }
+        if (modalLazyHideTimer) {
+          window.clearTimeout(modalLazyHideTimer);
+          modalLazyHideTimer = 0;
+        }
+        modalLazyOverlay.hidden = false;
+        modalLazyOverlay.setAttribute("aria-hidden", "false");
+        window.requestAnimationFrame(() => {
+          modalLazyOverlay.classList.add("is-visible");
+        });
+      };
+
+      const hideLazyOverlay = (immediate = false) => {
+        modalMedia.classList.remove("is-lazy-pending");
+        if (!modalLazyOverlay) {
+          return;
+        }
+        modalLazyOverlay.classList.remove("is-visible");
+        modalLazyOverlay.setAttribute("aria-hidden", "true");
+        if (modalLazyHideTimer) {
+          window.clearTimeout(modalLazyHideTimer);
+          modalLazyHideTimer = 0;
+        }
+        const finalize = () => {
+          modalLazyOverlay.hidden = true;
+          modalLazyOverlay.classList.remove("is-loading");
+          setLazyTerminalOpen(false);
+        };
+        if (immediate) {
+          finalize();
+          return;
+        }
+        modalLazyHideTimer = window.setTimeout(() => {
+          modalLazyHideTimer = 0;
+          finalize();
+        }, 220);
+      };
+
+      const showLazyPrompt = (mediaItem) => {
+        if (!modalLazyOverlay) {
+          return;
+        }
+        const isVideo = mediaItem && mediaItem.type === "video";
+        const sizeLabel = mediaItem && mediaItem.lazyBytes > 0 ? formatBytes(mediaItem.lazyBytes) : "";
+        if (modalLazyMessage) {
+          if (isVideo) {
+            modalLazyMessage.textContent = sizeLabel
+              ? `This video is ${sizeLabel}. Tap to load and decrypt.`
+              : "Tap to load and decrypt this video.";
+          } else {
+            modalLazyMessage.textContent = sizeLabel
+              ? `This image is ${sizeLabel}. Tap to load and decrypt.`
+              : "Tap to load and decrypt this image.";
+          }
+        }
+        modalMedia.classList.add("is-lazy-pending");
+        showLazyOverlay();
+        modalLazyOverlay.classList.remove("is-loading");
+        setLazyProgress(0);
+        resetLazyStatus("[+] Waiting for user action.");
+        setLazyTerminalOpen(false);
+        if (modalLazyLoadButton) {
+          modalLazyLoadButton.hidden = false;
+          modalLazyLoadButton.disabled = false;
+          modalLazyLoadButton.textContent = "Load now";
+        }
+      };
+
+      const showLazyProgress = (label) => {
+        if (!modalLazyOverlay) {
+          return;
+        }
+        showLazyOverlay();
+        modalLazyOverlay.classList.add("is-loading");
+        if (modalLazyMessage) {
+          modalLazyMessage.textContent = label || "Loading encrypted media...";
+        }
+        setLazyTerminalOpen(true);
+        if (modalLazyLoadButton) {
+          modalLazyLoadButton.hidden = true;
+          modalLazyLoadButton.disabled = true;
+        }
+      };
+
+      const setLazyErrorState = (error) => {
+        const text = error instanceof Error ? error.message : "Unable to load media.";
+        showLazyOverlay();
+        modalLazyOverlay.classList.remove("is-loading");
+        if (modalLazyMessage) {
+          modalLazyMessage.textContent = text;
+        }
+        setLazyTerminalOpen(true);
+        appendLazyStatusLine("[-] " + text);
+        if (modalLazyLoadButton) {
+          modalLazyLoadButton.hidden = false;
+          modalLazyLoadButton.disabled = false;
+          modalLazyLoadButton.textContent = "Retry";
+        }
+      };
+
+      const ensureActiveMediaLoaded = async () => {
+        if (!activeMedia || !isLazyPendingMedia(activeMedia)) {
+          return activeMedia ? activeMedia.src : "";
+        }
+        if (!assetRuntime || typeof assetRuntime.load !== "function") {
+          throw new Error("Lazy asset runtime is unavailable.");
+        }
+        if (!sessionPasswordHash) {
+          throw new Error("Missing temporary session key for lazy decryption.");
+        }
+        if (assetRuntime.passwordHash && String(assetRuntime.passwordHash) !== sessionPasswordHash) {
+          throw new Error("Session key mismatch. Re-enter password.");
+        }
+
+        const token = ++lazyLoadInFlight;
+        showLazyProgress("Fetching encrypted media...");
+        resetLazyStatus("[+] Preparing secure media loader...");
+        setLazyProgress(2);
+        const mediaItem = activeMedia;
+        const targetPath = mediaItem.sourcePath;
+        const sizeLabel = mediaItem.lazyBytes > 0 ? formatBytes(mediaItem.lazyBytes) : "";
+        if (sizeLabel) {
+          appendLazyStatusLine(`[+] Target size: ${sizeLabel}`);
+        }
+        let stageLogged = "";
+
+        const blobUrl = await assetRuntime.load(targetPath, {
+          onProgress: (state) => {
+            if (token !== lazyLoadInFlight) {
+              return;
+            }
+            const percent = Number(state && state.percent);
+            const stage = String(state && state.stage ? state.stage : "").toLowerCase();
+            let label = "Loading...";
+            if (stage === "fetching") {
+              label = "Fetching encrypted file...";
+              if (stageLogged !== "fetching") {
+                appendLazyStatusLine("[+] Fetching encrypted payload...");
+                stageLogged = "fetching";
+              }
+            } else if (stage === "fetched") {
+              label = "Decrypting...";
+              if (stageLogged !== "fetched") {
+                appendLazyStatusLine("[+] Payload downloaded.");
+                stageLogged = "fetched";
+              }
+            } else if (stage === "decrypting") {
+              label = "Decrypting...";
+              if (stageLogged !== "decrypting") {
+                appendLazyStatusLine("[+] Decrypting media...");
+                stageLogged = "decrypting";
+              }
+            } else if (stage === "cached") {
+              label = "Decrypting...";
+              if (stageLogged !== "cached") {
+                appendLazyStatusLine("[+] Using cached encrypted payload.");
+                stageLogged = "cached";
+              }
+            } else if (stage === "ready") {
+              label = "Finalizing...";
+              if (stageLogged !== "ready") {
+                appendLazyStatusLine("[+] Decryption complete.");
+                stageLogged = "ready";
+              }
+            }
+            if (Number.isFinite(percent)) {
+              setLazyProgress(percent);
+            } else {
+              setLazyProgress(45);
+            }
+            if (modalLazyMessage) {
+              modalLazyMessage.textContent = label;
+            }
+          }
+        });
+
+        mediaItem.src = blobUrl;
+        mediaItem.loadedSrc = blobUrl;
+        mediaItem.lazySrc = false;
+        if (token !== lazyLoadInFlight || activeMedia !== mediaItem) {
+          return blobUrl;
+        }
+        setLazyProgress(100);
+        appendLazyStatusLine("[+] Media ready.");
+        if (modalLazyMessage) {
+          modalLazyMessage.textContent = "Media ready";
+        }
+        if (mediaItem.type === "video") {
+          modalVideo.src = blobUrl;
+          modalVideo.removeAttribute("poster");
+          modalVideo.load();
+          await new Promise((resolve) => {
+            let settled = false;
+            let timeoutId = 0;
+            const onReady = () => {
+              finish();
+            };
+            const onError = () => {
+              finish();
+            };
+            const finish = () => {
+              if (settled) {
+                return;
+              }
+              settled = true;
+              if (timeoutId) {
+                window.clearTimeout(timeoutId);
+                timeoutId = 0;
+              }
+              modalVideo.removeEventListener("loadeddata", onReady);
+              modalVideo.removeEventListener("error", onError);
+              resolve();
+            };
+            modalVideo.addEventListener("loadeddata", onReady, { once: true });
+            modalVideo.addEventListener("error", onError, { once: true });
+            timeoutId = window.setTimeout(finish, 1400);
+          });
+          hideLazyOverlay();
+        } else {
+          modalImage.src = blobUrl;
+          hideLazyOverlay();
+        }
+        setPlayButtonState();
+        applyModalSizing();
+        return blobUrl;
+      };
+
       const setPlayButtonState = () => {
         if (!playButton) {
+          return;
+        }
+        if (activeMedia && activeMedia.type === "video" && isLazyPendingMedia(activeMedia)) {
+          playButton.classList.remove("is-hidden");
+          playButton.setAttribute("aria-label", "Load video");
           return;
         }
         const isPaused = modalVideo.paused;
@@ -1267,8 +1722,16 @@
         setPlayButtonState();
       };
 
-      const togglePlayback = () => {
+      const togglePlayback = async () => {
         if (!activeMedia || activeMedia.type !== "video") {
+          return;
+        }
+        if (isLazyPendingMedia(activeMedia)) {
+          try {
+            await ensureActiveMediaLoaded();
+          } catch (error) {
+            setLazyErrorState(error);
+          }
           return;
         }
         if (modalVideo.paused) {
@@ -1312,6 +1775,9 @@
       const getMediaPreviewSrc = (mediaItem) => {
         if (!mediaItem) {
           return "";
+        }
+        if (mediaItem.previewSrc) {
+          return mediaItem.previewSrc;
         }
         if (mediaItem.type === "video") {
           return mediaItem.thumbnail || mediaItem.poster || mediaItem.src || "";
@@ -1380,21 +1846,37 @@
         resetVideo();
         const isVideo = activeMedia.type === "video";
         modalMedia.classList.toggle("is-video", isVideo);
+        modalMedia.classList.toggle("is-lazy-pending", isLazyPendingMedia(activeMedia));
 
         if (isVideo) {
-          modalVideo.src = activeMedia.src;
-          modalVideo.removeAttribute("poster");
           modalVideo.loop = true;
           modalVideo.muted = true;
           modalVideo.controls = false;
-          modalVideo.load();
+          if (isLazyPendingMedia(activeMedia)) {
+            modalVideo.removeAttribute("src");
+            modalVideo.removeAttribute("poster");
+            modalVideo.load();
+            modalImage.src = activeMedia.previewSrc || activeMedia.thumbnail || activeMedia.poster || "assets/img/post.jpg";
+            showLazyPrompt(activeMedia);
+          } else {
+            hideLazyOverlay();
+            modalVideo.src = activeMedia.src;
+            modalVideo.removeAttribute("poster");
+            modalVideo.load();
+            modalImage.src = activeMedia.thumbnail || activeMedia.poster || activeMedia.src;
+          }
           setMuteButtonState();
-          modalImage.src = activeMedia.thumbnail || activeMedia.poster || activeMedia.src;
         } else {
           modalVideo.removeAttribute("src");
           modalVideo.removeAttribute("poster");
           modalVideo.load();
-          modalImage.src = activeMedia.src;
+          if (isLazyPendingMedia(activeMedia)) {
+            modalImage.src = activeMedia.previewSrc || activeMedia.thumbnail || "assets/img/post.jpg";
+            showLazyPrompt(activeMedia);
+          } else {
+            hideLazyOverlay();
+            modalImage.src = activeMedia.src;
+          }
         }
 
         modalImage.alt = activeMedia.alt || activePost.alt;
@@ -1412,6 +1894,8 @@
         const clampedIndex = Math.max(0, Math.min(total - 1, index));
         const previousMedia = activeMedia;
         const previousIndex = currentMediaIndex;
+        lazyLoadInFlight += 1;
+        hideLazyOverlay(true);
 
         currentMediaIndex = clampedIndex;
         activeMedia = activePost.mediaItems[currentMediaIndex];
@@ -1476,9 +1960,16 @@
       const closeModal = () => {
         clearMediaSlideTransition();
         resetVideo();
+        lazyLoadInFlight += 1;
+        hideLazyOverlay(true);
         modal.classList.remove("open");
         modal.setAttribute("aria-hidden", "true");
         document.body.classList.remove("modal-open");
+        applyMobileViewportVars({
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          keyboardInset: 0
+        });
         if (lastFocusedCard) {
           lastFocusedCard.focus();
         }
@@ -1613,7 +2104,9 @@
       }
 
       if (playButton) {
-        playButton.addEventListener("click", togglePlayback);
+        playButton.addEventListener("click", () => {
+          void togglePlayback();
+        });
       }
       if (muteButton) {
         muteButton.addEventListener("click", () => {
@@ -1624,8 +2117,20 @@
           setMuteButtonState();
         });
       }
+      if (modalLazyLoadButton) {
+        modalLazyLoadButton.addEventListener("click", () => {
+          if (!activeMedia) {
+            return;
+          }
+          void ensureActiveMediaLoaded().catch((error) => {
+            setLazyErrorState(error);
+          });
+        });
+      }
 
-      modalVideo.addEventListener("click", togglePlayback);
+      modalVideo.addEventListener("click", () => {
+        void togglePlayback();
+      });
       modalVideo.addEventListener("play", setPlayButtonState);
       modalVideo.addEventListener("pause", setPlayButtonState);
       modalVideo.addEventListener("volumechange", setMuteButtonState);
@@ -1640,6 +2145,14 @@
           }
           applyModalSizing();
         }
+      });
+      modalImage.addEventListener("click", () => {
+        if (!activeMedia || !isLazyPendingMedia(activeMedia)) {
+          return;
+        }
+        void ensureActiveMediaLoaded().catch((error) => {
+          setLazyErrorState(error);
+        });
       });
       modalImage.addEventListener("load", () => {
         if (!activeMedia || activeMedia.type !== "image") {
@@ -1688,12 +2201,39 @@
           const target = event.target;
           if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) {
             event.preventDefault();
-            togglePlayback();
+            void togglePlayback();
           }
         }
       });
 
-      window.addEventListener("resize", applyModalSizing);
+      const handleViewportChange = () => {
+        if (!modal.classList.contains("open")) {
+          return;
+        }
+        applyModalSizing();
+        if (commentInput && document.activeElement === commentInput) {
+          window.requestAnimationFrame(() => {
+            if (typeof commentInput.scrollIntoView === "function") {
+              commentInput.scrollIntoView({ block: "nearest", inline: "nearest" });
+            }
+          });
+        }
+      };
+
+      window.addEventListener("resize", handleViewportChange);
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener("resize", handleViewportChange);
+        window.visualViewport.addEventListener("scroll", handleViewportChange);
+      }
+      if (commentInput) {
+        commentInput.addEventListener("focus", () => {
+          window.setTimeout(handleViewportChange, 30);
+          window.setTimeout(handleViewportChange, 140);
+        });
+        commentInput.addEventListener("blur", () => {
+          window.setTimeout(handleViewportChange, 90);
+        });
+      }
     })();
   </script>
 </body>

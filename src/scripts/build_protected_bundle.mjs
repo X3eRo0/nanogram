@@ -13,6 +13,8 @@ const DEFAULT_BUNDLE_OUT = "build/public/site.bundle.json";
 const DEFAULT_INCLUDES = ["src/themes/default/css/nanogram.css", "build/assets"];
 const DEFAULT_ITERATIONS = 250000;
 const DEFAULT_OBJS_DIR = "build/public/objs";
+const DEFAULT_LAZY_MAX_BYTES = 15728640;
+const EAGER_CIPHERS_FILE_NAME = "eager-ciphers.json";
 
 function usage() {
   console.log(
@@ -25,6 +27,7 @@ function usage() {
       `  --bundle-out <path>       Output encrypted bundle path (default: ${DEFAULT_BUNDLE_OUT})`,
       `  --objs-dir <path>         Output directory for per-file encrypted JSON objects (default: ${DEFAULT_OBJS_DIR})`,
       `  --iterations <n>          PBKDF2 iterations (default: ${DEFAULT_ITERATIONS})`,
+      `  --lazy-max-bytes <n>      Lazy-load media bigger than n plaintext bytes (default: ${DEFAULT_LAZY_MAX_BYTES})`,
       "  --include <path>          Extra file/dir to include (repeatable)",
       "  --no-default-includes     Do not auto-include src/themes/default/css/nanogram.css and build/assets",
       "  -h, --help                Show this help",
@@ -79,6 +82,7 @@ function parseArgs(argv) {
     bundleOut: DEFAULT_BUNDLE_OUT,
     objsDir: DEFAULT_OBJS_DIR,
     iterations: DEFAULT_ITERATIONS,
+    lazyMaxBytes: DEFAULT_LAZY_MAX_BYTES,
     includes: [],
     useDefaultIncludes: true,
   };
@@ -115,6 +119,15 @@ function parseArgs(argv) {
         throw new Error("--iterations must be a number >= 1000");
       }
       args.iterations = Math.floor(parsed);
+      i += 1;
+      continue;
+    }
+    if (token === "--lazy-max-bytes") {
+      const parsed = Number(argv[i + 1]);
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        throw new Error("--lazy-max-bytes must be a number >= 0");
+      }
+      args.lazyMaxBytes = Math.floor(parsed);
       i += 1;
       continue;
     }
@@ -217,6 +230,14 @@ async function deriveEncryptionKey(password, salt, iterations) {
   );
 }
 
+function isLazyEligibleMedia(relPath, mime) {
+  if (typeof mime !== "string" || !(mime.startsWith("video/") || mime.startsWith("image/"))) {
+    return false;
+  }
+  const normalized = toPosixRelative(relPath);
+  return /(^|\/)assets\/(posts|reels)\//.test(normalized);
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   const appHtmlRel = toPosixRelative(args.appHtml);
@@ -225,6 +246,10 @@ async function main() {
   const objsDirRel = toPosixRelative(args.objsDir);
   const objsDirAbs = path.resolve(args.objsDir);
   const bundleDirRel = path.posix.dirname(bundleOutRel);
+  const eagerCipherFileAbs = path.join(objsDirAbs, EAGER_CIPHERS_FILE_NAME);
+  const eagerCipherFileRel = toPosixRelative(eagerCipherFileAbs);
+  const eagerCipherFileClientRel =
+    path.posix.relative(bundleDirRel, eagerCipherFileRel) || EAGER_CIPHERS_FILE_NAME;
 
   const includeRoots = [];
   includeRoots.push(args.appHtml);
@@ -260,13 +285,16 @@ async function main() {
     throw new Error("No files to encrypt");
   }
 
-  const salt = await deriveDeterministicSalt(args.password, args.iterations);
-  const key = await deriveEncryptionKey(args.password, salt, args.iterations);
   const passwordHashHex = hexFromArrayBuffer(
     await subtle.digest("SHA-256", encoder.encode(args.password))
   );
+  const salt = await deriveDeterministicSalt(passwordHashHex, args.iterations);
+  const key = await deriveEncryptionKey(passwordHashHex, salt, args.iterations);
 
   let encryptedCount = 0;
+  let lazyCount = 0;
+  let eagerCount = 0;
+  let lazyPlainBytes = 0;
   let totalPlainBytes = 0;
   const bundleMeta = {
     version: 1,
@@ -276,6 +304,7 @@ async function main() {
     kdf: {
       algorithm: "PBKDF2",
       hash: "SHA-256",
+      password_input: "sha256_hex",
       iterations: args.iterations,
       salt_b64: base64FromBytes(salt),
     },
@@ -285,10 +314,19 @@ async function main() {
       tag_bytes: 16,
     },
     storage: {
-      ciphertext_container: "json_per_file",
+      ciphertext_container: "json_blob_for_eager_and_json_per_file_for_lazy",
       objs_dir: path.posix.relative(bundleDirRel, objsDirRel) || ".",
       ciphertext_field: "ciphertext_b64",
       entry_field: "ciphertext_json",
+      eager_entry_field: "ciphertext_name",
+      eager_ciphertexts_json: eagerCipherFileClientRel,
+      eager_item_name_field: "name",
+      eager_item_cipher_field: "cipher",
+    },
+    lazy_load: {
+      enabled: args.lazyMaxBytes > 0,
+      max_plaintext_bytes: args.lazyMaxBytes,
+      mode: "media_only",
     }
   };
 
@@ -301,12 +339,24 @@ async function main() {
     await bundleHandle.write(`${metaJson.slice(0, -1)},"files":[`);
 
     const makeObjFileName = async (relPath) => `${await sha256Hex(relPath)}.json`;
+    const eagerCipherItems = [];
 
     for (let i = 0; i < sortedFiles.length; i += 1) {
       const relPath = sortedFiles[i];
       const absPath = path.resolve(relPath);
       const plain = await fs.readFile(absPath);
-      totalPlainBytes += plain.byteLength;
+      const plainBytes = plain.byteLength;
+      totalPlainBytes += plainBytes;
+      const mime = mimeForPath(relPath);
+      const shouldLazyLoad = args.lazyMaxBytes > 0
+        && plainBytes > args.lazyMaxBytes
+        && isLazyEligibleMedia(relPath, mime);
+      if (shouldLazyLoad) {
+        lazyCount += 1;
+        lazyPlainBytes += plainBytes;
+      } else {
+        eagerCount += 1;
+      }
 
       const iv = await deriveDeterministicIv(relPath, plain);
       const encrypted = await subtle.encrypt(
@@ -317,22 +367,36 @@ async function main() {
 
       const entry = {
         path: relPath,
-        mime: mimeForPath(relPath),
+        mime,
         iv_b64: base64FromBytes(iv),
+        plain_bytes: plainBytes,
+        lazy: shouldLazyLoad,
       };
       const ciphertextFileName = await makeObjFileName(relPath);
       const ciphertextFileAbs = path.join(objsDirAbs, ciphertextFileName);
       const ciphertextFileRel = toPosixRelative(ciphertextFileAbs);
       const ciphertextFileClientRel = path.posix.relative(bundleDirRel, ciphertextFileRel) || ciphertextFileName;
-      const ciphertextPayload = {
-        ciphertext_b64: base64FromBytes(new Uint8Array(encrypted)),
-      };
-      await fs.writeFile(
-        ciphertextFileAbs,
-        JSON.stringify(ciphertextPayload),
-        "utf8"
-      );
-      entry.ciphertext_json = ciphertextFileClientRel;
+      const encryptedBytes = new Uint8Array(encrypted);
+      const encryptedBase64 = base64FromBytes(encryptedBytes);
+      if (shouldLazyLoad) {
+        const ciphertextPayload = {
+          ciphertext_b64: encryptedBase64,
+        };
+        await fs.writeFile(
+          ciphertextFileAbs,
+          JSON.stringify(ciphertextPayload),
+          "utf8"
+        );
+        entry.ciphertext_json = ciphertextFileClientRel;
+      } else {
+        const eagerCipherName = `obj/${ciphertextFileName}`;
+        eagerCipherItems.push({
+          name: eagerCipherName,
+          cipher: encryptedBase64,
+        });
+        entry.ciphertext_name = eagerCipherName;
+      }
+      entry.ciphertext_bytes = encryptedBytes.byteLength;
 
       if (i > 0) {
         await bundleHandle.write(",");
@@ -340,6 +404,15 @@ async function main() {
       await bundleHandle.write(JSON.stringify(entry));
       encryptedCount += 1;
     }
+
+    const eagerCipherPayload = {
+      files: eagerCipherItems,
+    };
+    await fs.writeFile(
+      eagerCipherFileAbs,
+      JSON.stringify(eagerCipherPayload),
+      "utf8"
+    );
 
     await bundleHandle.write("]}");
   } finally {
@@ -349,8 +422,12 @@ async function main() {
 
   console.log(`Encrypted files: ${encryptedCount}`);
   console.log(`Total plaintext bytes: ${totalPlainBytes}`);
+  console.log(`Eager entries: ${eagerCount}`);
+  console.log(`Lazy entries: ${lazyCount}`);
+  console.log(`Lazy plaintext bytes: ${lazyPlainBytes}`);
   console.log(`Bundle: ${bundleOutRel}`);
   console.log(`Encrypted objects dir: ${objsDirRel}`);
+  console.log(`Eager ciphertext blob: ${eagerCipherFileClientRel}`);
   console.log(`App HTML path in bundle: ${appHtmlRel}`);
 }
 

@@ -35,6 +35,7 @@ from urllib.request import Request, urlopen
 
 DEFAULT_METADATA_DIR = Path("build/metadata")
 DEFAULT_ENCODING = "utf-8-sig"
+DEFAULT_GOOGLE_SHEET_RANGE = "A:Z"
 
 
 def canonical_post_id_for_metadata(value: str) -> str:
@@ -96,11 +97,6 @@ def parse_args() -> argparse.Namespace:
         "--google-sheet-id",
         default=None,
         help="Private/public Google Sheet ID. When set, rows are fetched via Google Sheets API.",
-    )
-    parser.add_argument(
-        "--google-sheet-range",
-        default="A:Z",
-        help="A1 range for Google Sheets API mode (default: A:Z). First row must be headers.",
     )
     parser.add_argument(
         "--google-access-token",
@@ -240,9 +236,9 @@ def read_csv_text(source: str, encoding: str) -> str:
     return path.read_text(encoding=encoding)
 
 
-def fetch_google_sheet_as_csv(sheet_id: str, sheet_range: str, access_token: str) -> str:
+def fetch_google_sheet_as_csv(sheet_id: str, access_token: str) -> str:
     sheet_id = str(sheet_id or "").strip()
-    sheet_range = str(sheet_range or "").strip() or "A:Z"
+    sheet_range = DEFAULT_GOOGLE_SHEET_RANGE
     token = str(access_token or "").strip()
     if not sheet_id:
         raise ValueError("google-sheet-id is empty")
@@ -413,7 +409,6 @@ def import_csv_rows(args: argparse.Namespace) -> int:
     if args.google_sheet_id:
         csv_text = fetch_google_sheet_as_csv(
             sheet_id=args.google_sheet_id,
-            sheet_range=args.google_sheet_range,
             access_token=args.google_access_token,
         )
     else:
