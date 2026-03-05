@@ -22,6 +22,7 @@ CFG_THEME_DIR=""
 CFG_DEBUG_ITERATIONS=""
 CFG_RELEASE_ITERATIONS=""
 CFG_LAZY_LOAD_SIZE_MAX_BYTES=""
+CFG_COMMENTS_TOKEN_SOURCE=""
 CFG_LOGIN_PASSWORD=""
 CFG_TEST_PASSWORD=""
 CFG_IMPORT_COMMENTS_SCRIPT="$SCRIPT_DIR/src/scripts/import_sheet_comments.py"
@@ -29,7 +30,9 @@ CFG_IMPORT_COMMENTS_SCRIPT="$SCRIPT_DIR/src/scripts/import_sheet_comments.py"
 IMPORT_COMMENTS_CSV=""
 IMPORT_COMMENTS_GOOGLE_SHEET_ID=""
 IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN=""
-IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV=""
+IMPORT_COMMENTS_GOOGLE_CLIENT_ID=""
+IMPORT_COMMENTS_GOOGLE_CLIENT_SECRET=""
+IMPORT_COMMENTS_GOOGLE_REFRESH_TOKEN=""
 IMPORT_COMMENTS_ENCODING=""
 IMPORT_COMMENTS_POST_ID_COLUMN=""
 IMPORT_COMMENTS_AVATAR_COLUMN=""
@@ -38,6 +41,7 @@ IMPORT_COMMENTS_COMMENT_COLUMN=""
 IMPORT_COMMENTS_DEFAULT_NAME=""
 IMPORT_COMMENTS_CREATE_MISSING=0
 IMPORT_COMMENTS_DRY_RUN=0
+IMPORT_COMMENTS_CLI_GOOGLE_OVERRIDES=0
 PARSE_CONSUMED=0
 COMMENT_IMPORT_CMD=()
 
@@ -121,7 +125,9 @@ Comments Command Options:
   Google Sheets mode:
     - Requires --config.
     - Reads sheet id/token from config keys:
-      COMMENTS_GOOGLE_SHEET_ID and COMMENTS_GOOGLE_ACCESS_TOKEN (or _ENV).
+      COMMENTS_GOOGLE_SHEET_ID and either:
+      * COMMENTS_GOOGLE_ACCESS_TOKEN, or
+      * refresh credentials (COMMENTS_GOOGLE_CLIENT_ID, COMMENTS_GOOGLE_CLIENT_SECRET, COMMENTS_GOOGLE_REFRESH_TOKEN).
     - CLI --sheet-id/--access-token are ignored in favor of config values.
 USAGE
 }
@@ -170,9 +176,15 @@ COMMENT_AVATAR_EMOJIS='["👶","🧒","👦","👧","🧑","👱","👨","🧔",
 # Optional: defaults for `./nanogram.sh comments`.
 # Set exactly one source (COMMENTS_CSV or COMMENTS_GOOGLE_SHEET_ID).
 COMMENTS_CSV=""
+# Google Sheets source identifier (from docs.google.com URL).
 COMMENTS_GOOGLE_SHEET_ID=""
+# Auth mode A: direct short-lived OAuth access token.
 COMMENTS_GOOGLE_ACCESS_TOKEN=""
-COMMENTS_GOOGLE_ACCESS_TOKEN_ENV="GOOGLE_ACCESS_TOKEN"
+# Auth mode B: automatic access-token minting via OAuth refresh token.
+# Used when COMMENTS_GOOGLE_ACCESS_TOKEN is empty.
+COMMENTS_GOOGLE_CLIENT_ID=""
+COMMENTS_GOOGLE_CLIENT_SECRET=""
+COMMENTS_GOOGLE_REFRESH_TOKEN=""
 COMMENTS_ENCODING="utf-8-sig"
 COMMENTS_POST_ID_COLUMN="post-id"
 COMMENTS_AVATAR_COLUMN="avatar"
@@ -319,7 +331,7 @@ validate_comment_import_options() {
   fi
 
   if (( has_csv == 1 )); then
-    if [[ -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
+    if [[ -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" || -n "${IMPORT_COMMENTS_GOOGLE_CLIENT_ID// }" || -n "${IMPORT_COMMENTS_GOOGLE_CLIENT_SECRET// }" || -n "${IMPORT_COMMENTS_GOOGLE_REFRESH_TOKEN// }" ]]; then
       warn "Google Sheets-specific comment import options were provided with --csv and will be ignored"
     fi
   fi
@@ -338,9 +350,6 @@ build_comment_import_cmd() {
     COMMENT_IMPORT_CMD+=(--google-sheet-id "$IMPORT_COMMENTS_GOOGLE_SHEET_ID")
     if [[ -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" ]]; then
       COMMENT_IMPORT_CMD+=(--google-access-token "$IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN")
-    fi
-    if [[ -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
-      COMMENT_IMPORT_CMD+=(--google-access-token-env "$IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV")
     fi
   fi
 
@@ -415,16 +424,13 @@ parse_comments_command_option() {
     --sheet-id|--google-sheet-id)
       [[ $# -ge 2 ]] || fatal "--sheet-id requires a value"
       IMPORT_COMMENTS_GOOGLE_SHEET_ID="$2"
+      IMPORT_COMMENTS_CLI_GOOGLE_OVERRIDES=1
       PARSE_CONSUMED=2
       ;;
     --access-token|--google-access-token)
       [[ $# -ge 2 ]] || fatal "--access-token requires a value"
       IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN="$2"
-      PARSE_CONSUMED=2
-      ;;
-    --access-token-env|--google-access-token-env)
-      [[ $# -ge 2 ]] || fatal "--access-token-env requires a value"
-      IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV="$2"
+      IMPORT_COMMENTS_CLI_GOOGLE_OVERRIDES=1
       PARSE_CONSUMED=2
       ;;
     --encoding)
@@ -486,6 +492,87 @@ to_bool_flag() {
   esac
 }
 
+refresh_google_access_token() {
+  local client_id="$1"
+  local client_secret="$2"
+  local refresh_token="$3"
+  python3 - "$client_id" "$client_secret" "$refresh_token" <<'PY'
+import json
+import sys
+import urllib.parse
+import urllib.request
+from urllib.error import HTTPError, URLError
+
+client_id, client_secret, refresh_token = sys.argv[1:4]
+url = "https://oauth2.googleapis.com/token"
+payload = urllib.parse.urlencode(
+    {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "refresh_token": refresh_token,
+        "grant_type": "refresh_token",
+    }
+).encode("utf-8")
+request = urllib.request.Request(url=url, data=payload, method="POST")
+
+try:
+    with urllib.request.urlopen(request, timeout=30) as response:
+        raw_body = response.read().decode("utf-8", errors="replace")
+except HTTPError as exc:
+    error_body = exc.read().decode("utf-8", errors="replace")
+    detail = ""
+    try:
+        parsed = json.loads(error_body)
+        detail = str(parsed.get("error_description") or parsed.get("error") or "").strip()
+    except Exception:
+        detail = ""
+    suffix = f": {detail}" if detail else ""
+    print(f"token endpoint request failed ({exc.code} {exc.reason}){suffix}", file=sys.stderr)
+    sys.exit(1)
+except URLError as exc:
+    print(f"token endpoint request failed: {exc.reason}", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    parsed = json.loads(raw_body)
+except json.JSONDecodeError:
+    print("token endpoint returned non-JSON response", file=sys.stderr)
+    sys.exit(1)
+
+access_token = str(parsed.get("access_token") or "").strip()
+if not access_token:
+    detail = str(parsed.get("error_description") or parsed.get("error") or "missing access_token").strip()
+    print(f"token endpoint response error: {detail}", file=sys.stderr)
+    sys.exit(1)
+
+print(access_token)
+PY
+}
+
+resolve_google_access_token_for_comments() {
+  if [[ -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" ]]; then
+    CFG_COMMENTS_TOKEN_SOURCE="COMMENTS_GOOGLE_ACCESS_TOKEN"
+    printf '%s\n' "$IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN"
+    return 0
+  fi
+
+  local client_id client_secret refresh_token
+  client_id="$IMPORT_COMMENTS_GOOGLE_CLIENT_ID"
+  client_secret="$IMPORT_COMMENTS_GOOGLE_CLIENT_SECRET"
+  refresh_token="$IMPORT_COMMENTS_GOOGLE_REFRESH_TOKEN"
+
+  [[ -n "${client_id// }" ]] || fatal \
+    "missing Google token auth in $CFG_CONFIG_PATH: set COMMENTS_GOOGLE_ACCESS_TOKEN or COMMENTS_GOOGLE_CLIENT_ID"
+  [[ -n "${client_secret// }" ]] || fatal \
+    "missing Google token auth in $CFG_CONFIG_PATH: set COMMENTS_GOOGLE_ACCESS_TOKEN or COMMENTS_GOOGLE_CLIENT_SECRET"
+  [[ -n "${refresh_token// }" ]] || fatal \
+    "missing Google token auth in $CFG_CONFIG_PATH: set COMMENTS_GOOGLE_ACCESS_TOKEN or COMMENTS_GOOGLE_REFRESH_TOKEN"
+
+  info "Minting Google access token via refresh token credentials"
+  CFG_COMMENTS_TOKEN_SOURCE="refresh-token"
+  refresh_google_access_token "$client_id" "$client_secret" "$refresh_token"
+}
+
 load_comment_import_defaults_from_config() {
   if [[ -z "${IMPORT_COMMENTS_CSV// }" && -n "${COMMENTS_CSV:-}" ]]; then
     IMPORT_COMMENTS_CSV="$COMMENTS_CSV"
@@ -496,8 +583,14 @@ load_comment_import_defaults_from_config() {
   if [[ -z "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" && -n "${COMMENTS_GOOGLE_ACCESS_TOKEN:-}" ]]; then
     IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN="$COMMENTS_GOOGLE_ACCESS_TOKEN"
   fi
-  if [[ -z "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" && -n "${COMMENTS_GOOGLE_ACCESS_TOKEN_ENV:-}" ]]; then
-    IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV="$COMMENTS_GOOGLE_ACCESS_TOKEN_ENV"
+  if [[ -z "${IMPORT_COMMENTS_GOOGLE_CLIENT_ID// }" && -n "${COMMENTS_GOOGLE_CLIENT_ID:-}" ]]; then
+    IMPORT_COMMENTS_GOOGLE_CLIENT_ID="$COMMENTS_GOOGLE_CLIENT_ID"
+  fi
+  if [[ -z "${IMPORT_COMMENTS_GOOGLE_CLIENT_SECRET// }" && -n "${COMMENTS_GOOGLE_CLIENT_SECRET:-}" ]]; then
+    IMPORT_COMMENTS_GOOGLE_CLIENT_SECRET="$COMMENTS_GOOGLE_CLIENT_SECRET"
+  fi
+  if [[ -z "${IMPORT_COMMENTS_GOOGLE_REFRESH_TOKEN// }" && -n "${COMMENTS_GOOGLE_REFRESH_TOKEN:-}" ]]; then
+    IMPORT_COMMENTS_GOOGLE_REFRESH_TOKEN="$COMMENTS_GOOGLE_REFRESH_TOKEN"
   fi
   if [[ -z "${IMPORT_COMMENTS_ENCODING// }" && -n "${COMMENTS_ENCODING:-}" ]]; then
     IMPORT_COMMENTS_ENCODING="$COMMENTS_ENCODING"
@@ -1225,19 +1318,22 @@ run_comments() {
     [[ -n "${config_path// }" ]] || fatal \
       "comments command requires --config for Google Sheets source (sheet-id/access-token are read from config)"
 
-    if [[ -n "${IMPORT_COMMENTS_GOOGLE_SHEET_ID// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" || -n "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
+    if [[ "$IMPORT_COMMENTS_CLI_GOOGLE_OVERRIDES" == "1" ]]; then
       warn "ignoring CLI --sheet-id/--access-token options; using COMMENTS_GOOGLE_* values from config"
     fi
 
     IMPORT_COMMENTS_GOOGLE_SHEET_ID="${COMMENTS_GOOGLE_SHEET_ID:-}"
     IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN="${COMMENTS_GOOGLE_ACCESS_TOKEN:-}"
-    IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV="${COMMENTS_GOOGLE_ACCESS_TOKEN_ENV:-}"
+    IMPORT_COMMENTS_GOOGLE_CLIENT_ID="${COMMENTS_GOOGLE_CLIENT_ID:-}"
+    IMPORT_COMMENTS_GOOGLE_CLIENT_SECRET="${COMMENTS_GOOGLE_CLIENT_SECRET:-}"
+    IMPORT_COMMENTS_GOOGLE_REFRESH_TOKEN="${COMMENTS_GOOGLE_REFRESH_TOKEN:-}"
 
     [[ -n "${IMPORT_COMMENTS_GOOGLE_SHEET_ID// }" ]] || fatal \
       "missing COMMENTS_GOOGLE_SHEET_ID in config: $CFG_CONFIG_PATH"
-    if [[ -z "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN// }" && -z "${IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN_ENV// }" ]]; then
-      fatal "missing Google access token config in $CFG_CONFIG_PATH: set COMMENTS_GOOGLE_ACCESS_TOKEN or COMMENTS_GOOGLE_ACCESS_TOKEN_ENV"
-    fi
+
+    IMPORT_COMMENTS_GOOGLE_ACCESS_TOKEN="$(
+      resolve_google_access_token_for_comments
+    )"
   fi
 
   if ! comment_import_requested; then
@@ -1258,6 +1354,7 @@ run_comments() {
     print_kv "source" "$IMPORT_COMMENTS_CSV"
   else
     print_kv "source" "google-sheet:$IMPORT_COMMENTS_GOOGLE_SHEET_ID"
+    print_kv "token_source" "$CFG_COMMENTS_TOKEN_SOURCE"
   fi
 
   run_step "Importing sheet comments" "$import_log" "${COMMENT_IMPORT_CMD[@]}"

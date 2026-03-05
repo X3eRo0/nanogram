@@ -14,7 +14,7 @@ The importer updates:
 
 Private sheets are supported via Google Sheets API mode:
 - --google-sheet-id
-- --google-access-token (or env var)
+- --google-access-token
 """
 
 from __future__ import annotations
@@ -23,7 +23,6 @@ import argparse
 import csv
 import io
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -101,18 +100,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--google-access-token",
         default=None,
-        help=(
-            "OAuth access token for Google Sheets API mode (Bearer token). "
-            "If omitted, --google-access-token-env is used."
-        ),
-    )
-    parser.add_argument(
-        "--google-access-token-env",
-        default="GOOGLE_ACCESS_TOKEN",
-        help=(
-            "Environment variable containing OAuth access token for Google Sheets API mode "
-            "(default: GOOGLE_ACCESS_TOKEN)."
-        ),
+        help="OAuth access token for Google Sheets API mode (Bearer token).",
     )
     parser.add_argument(
         "--metadata-dir",
@@ -164,16 +152,8 @@ def parse_args() -> argparse.Namespace:
     if not args.csv and not args.google_sheet_id:
         parser.error("Provide one input source: --csv <path|url> or --google-sheet-id <id>.")
     if args.google_sheet_id and not args.google_access_token:
-        env_name = str(args.google_access_token_env or "").strip()
-        if env_name:
-            env_value = os.getenv(env_name, "").strip()
-            if env_value:
-                args.google_access_token = env_value
-    if args.google_sheet_id and not args.google_access_token:
-        env_name = str(args.google_access_token_env or "").strip() or "GOOGLE_ACCESS_TOKEN"
         parser.error(
-            "--google-sheet-id requires --google-access-token "
-            f"or env var {env_name}."
+            "--google-sheet-id requires --google-access-token."
         )
     return args
 
@@ -225,7 +205,7 @@ def read_csv_text(source: str, encoding: str) -> str:
             if exc.code in {401, 403} and "docs.google.com/spreadsheets" in url:
                 hint = (
                     " Sheet appears private; use --google-sheet-id with "
-                    "--google-access-token (or env var)."
+                    "--google-access-token."
                 )
             raise RuntimeError(
                 f"Failed to download CSV ({exc.code} {exc.reason}).{hint}"

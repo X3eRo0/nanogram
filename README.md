@@ -83,8 +83,10 @@ These keys are consumed by `nanogram.sh comments` (not by `debug`, `release`, or
 | --- | --- | --- |
 | `COMMENTS_CSV` | empty | CSV path/URL source |
 | `COMMENTS_GOOGLE_SHEET_ID` | empty | Google Sheet ID source (required for Sheets mode) |
-| `COMMENTS_GOOGLE_ACCESS_TOKEN` | empty | OAuth access token (required unless using `_ENV`) |
-| `COMMENTS_GOOGLE_ACCESS_TOKEN_ENV` | `GOOGLE_ACCESS_TOKEN` | Env var name for OAuth token (required unless using direct token) |
+| `COMMENTS_GOOGLE_ACCESS_TOKEN` | empty | OAuth access token (direct value) |
+| `COMMENTS_GOOGLE_CLIENT_ID` | empty | OAuth client id (used for refresh-token flow) |
+| `COMMENTS_GOOGLE_CLIENT_SECRET` | empty | OAuth client secret (used for refresh-token flow) |
+| `COMMENTS_GOOGLE_REFRESH_TOKEN` | empty | OAuth refresh token (used to mint access token) |
 | `COMMENTS_ENCODING` | `utf-8-sig` | CSV encoding |
 | `COMMENTS_POST_ID_COLUMN` | `post-id` | Post-id column header |
 | `COMMENTS_AVATAR_COLUMN` | `avatar` | Avatar column header |
@@ -115,7 +117,10 @@ Comment operations are invoked only through `nanogram.sh comments`.
 
 Google Sheets mode reads source/auth from config:
 - `COMMENTS_GOOGLE_SHEET_ID`
-- `COMMENTS_GOOGLE_ACCESS_TOKEN` or `COMMENTS_GOOGLE_ACCESS_TOKEN_ENV`
+- one auth path:
+  - `COMMENTS_GOOGLE_ACCESS_TOKEN`
+  - or refresh credentials (`COMMENTS_GOOGLE_CLIENT_ID`, `COMMENTS_GOOGLE_CLIENT_SECRET`, `COMMENTS_GOOGLE_REFRESH_TOKEN`)
+- setup guide: [Google OAuth Setup For Comments](docs/google-oauth-comments.md)
 
 Run:
 
